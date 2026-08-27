@@ -1,0 +1,60 @@
+{
+  // Press F5 and pick one of these. Breakpoints work in all of them --
+  // dropping one inside a grader is the fastest way to understand the flow.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Eval: offline (no API key, free)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_eval.py",
+      "args": ["--no-judge", "--reps", "1", "--no-gate"],
+      "env": { "EVAL_FAKE": "1", "PYTHONIOENCODING": "utf8" },
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Eval: full judged run (costs money)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_eval.py",
+      "env": { "PYTHONIOENCODING": "utf8" },
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Eval: one tag only (--tag arabic)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_eval.py",
+      "args": ["--tag", "arabic"],
+      "env": { "PYTHONIOENCODING": "utf8" },
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "Validate the dataset",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/validate_dataset.py",
+      "env": { "PYTHONIOENCODING": "utf8" },
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Record fixtures from live runs",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/record_fixtures.py",
+      "env": { "PYTHONIOENCODING": "utf8" },
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Serve the agent on :8000 (for k6)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/serve.py",
+      "env": { "PYTHONIOENCODING": "utf8" },
+      "console": "integratedTerminal"
+    }
+  ]
+}

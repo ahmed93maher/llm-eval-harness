@@ -1,0 +1,29 @@
+{
+  // Tests show up in the Testing sidebar (the flask icon) and can be run
+  // individually with the play buttons in the gutter.
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["tests"],
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.extraPaths": ["."],
+
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true
+  },
+  "search.exclude": {
+    "results/**": true
+  },
+
+  "[python]": {
+    "editor.rulers": [100],
+    "editor.formatOnSave": false
+  },
+  "[yaml]": {
+    "editor.tabSize": 2
+  },
+
+  // cases.yaml is UTF-8 with Arabic text -- make sure the editor treats it so.
+  "files.encoding": "utf8",
+  "files.autoGuessEncoding": false
+}
