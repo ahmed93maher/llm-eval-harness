@@ -1,0 +1,53 @@
+name: eval
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 2 * * *"   # nightly judged run
+  workflow_dispatch:
+
+jobs:
+  # Every push. No API key, no cost, seconds to run.
+  fast:
+    name: graders + dataset (offline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Validate the dataset
+        run: python scripts/validate_dataset.py
+      - name: Unit-test the graders
+        run: pytest -q
+      - name: Offline suite against recorded fixtures
+        env:
+          EVAL_FAKE: "1"
+        run: python scripts/run_eval.py --no-judge --reps 1 --no-gate
+
+  # Nightly and on demand. Costs money, so it does not run per push.
+  judged:
+    name: full judged eval
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run the suite and gate against the baseline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python scripts/run_eval.py
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: results/
+          retention-days: 30
