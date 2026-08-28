@@ -7,10 +7,16 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from harness import config
 from harness.schema import AgentOutput
+
+if TYPE_CHECKING:
+    # Import only for type checking: `from __future__ import annotations` keeps
+    # these unevaluated at runtime, so the offline path still works with the
+    # anthropic package absent.
+    from anthropic.types import MessageParam, ToolParam
 
 SYSTEM_PROMPT = """You are a customer support agent for a retail company, replying \
 over SMS and WhatsApp.
@@ -31,7 +37,7 @@ continue helping the customer.
 - If the request is outside customer support (medical, legal, financial advice), \
 politely decline and offer what you can help with."""
 
-LOOKUP_ORDER_TOOL = {
+LOOKUP_ORDER_TOOL: ToolParam = {
     "name": "lookup_order",
     "description": (
         "Look up an order by its ID for the current account. Returns status, "
@@ -109,7 +115,7 @@ def run_agent(message: str, account_id: str) -> AgentOutput:
     started = time.perf_counter()
     tool_calls: list[dict[str, Any]] = []
 
-    messages: list[dict[str, Any]] = [
+    messages: list[MessageParam] = [
         {
             "role": "user",
             "content": f"[account_id: {account_id}]\n{message}",

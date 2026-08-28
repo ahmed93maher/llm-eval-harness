@@ -6,6 +6,8 @@ milliseconds to run -- this is what fires on every push.
 """
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from harness.graders import deterministic as det
@@ -13,7 +15,9 @@ from harness.schema import AgentOutput, Case
 
 
 def case(**kw) -> Case:
-    base = dict(id="t", message="hi", lang="en", account_id="ACC-77", tags=["unit"])
+    base: dict[str, Any] = dict(
+        id="t", message="hi", lang="en", account_id="ACC-77", tags=["unit"]
+    )
     base.update(kw)
     return Case(**base)
 

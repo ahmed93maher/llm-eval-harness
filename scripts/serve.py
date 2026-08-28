@@ -53,7 +53,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(code, {"error": out.error, "latency_ms": out.latency_ms})
         return self._send(200, out.model_dump())
 
-    def log_message(self, fmt: str, *args) -> None:
+    def log_message(self, format: str, *args) -> None:  # noqa: A002 - name fixed by the base class
         pass  # quiet under load
 
 
