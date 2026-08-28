@@ -7,6 +7,16 @@ DATA = ROOT / "data"
 BASELINES = ROOT / "baselines"
 RESULTS = ROOT / "results"
 
+# Load .env if present, so the API key lives in a gitignored file rather than in
+# your shell profile. Optional dependency: everything still works without it as
+# long as the environment is set some other way.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(ROOT / ".env")
+except ImportError:  # pragma: no cover
+    pass
+
 # --- models ----------------------------------------------------------------
 # The agent under test runs on Haiku 4.5: it is the cheap, fast tier and this is
 # the model we call hundreds of times per eval run. The judge runs on Opus 5 --
