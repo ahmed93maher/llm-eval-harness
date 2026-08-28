@@ -10,6 +10,8 @@ hand-labelled examples; until you have run that, treat these scores as unvalidat
 """
 from __future__ import annotations
 
+import json
+
 from harness import config
 from harness.schema import AgentOutput, Case, JudgeVerdict
 
@@ -41,13 +43,33 @@ TONE
 Judge only what is in front of you. Do not reward a reply for sounding confident."""
 
 
+def _format_context(out: AgentOutput) -> str:
+    """Every tool call the agent made, and what it got back.
+
+    Faithfulness cannot be scored against the calls alone -- "shipped with
+    Aramex" is only groundable if the judge can see that the tool said so.
+    """
+    if not out.tool_calls:
+        return "(no tools called - the agent answered from the conversation alone)"
+    lines: list[str] = []
+    for i, call in enumerate(out.tool_calls, 1):
+        args = json.dumps(call.get("args", {}), ensure_ascii=False, sort_keys=True)
+        lines.append(f"{i}. called {call.get('name')}({args})")
+        result = call.get("result")
+        lines.append(f"   returned: {result if result is not None else '(not recorded)'}")
+    return "\n".join(lines)
+
+
 def _prompt(case: Case, out: AgentOutput) -> str:
-    tools = out.tool_calls or "none"
     extra = f"\n\nCase-specific expectation:\n{case.rubric}" if case.rubric else ""
     return (
         f"CUSTOMER MESSAGE ({case.lang}):\n{case.message}\n\n"
-        f"CONTEXT AVAILABLE TO THE AGENT (tool calls it made):\n{tools}\n\n"
-        f"AGENT REPLY:\n{out.reply}{extra}"
+        f"CONTEXT THE AGENT RECEIVED (tool calls and what they returned):\n"
+        f"{_format_context(out)}\n\n"
+        f"AGENT REPLY:\n{out.reply}\n\n"
+        f"Every factual claim in the reply must be supported by the context above. "
+        f"A claim that is plausible but absent from the context is not faithful."
+        f"{extra}"
     )
 
 

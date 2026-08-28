@@ -156,12 +156,17 @@ def run_agent(message: str, account_id: str) -> AgentOutput:
             for block in response.content:
                 if block.type != "tool_use":
                     continue
-                tool_calls.append({"name": block.name, "args": dict(block.input)})
+                args = dict(block.input)
+                result = execute_tool(block.name, args)
+                # Record the result, not just the call: the judge cannot assess
+                # whether a claim is grounded without seeing what the agent was
+                # actually told.
+                tool_calls.append({"name": block.name, "args": args, "result": result})
                 results.append(
                     {
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": execute_tool(block.name, dict(block.input)),
+                        "content": result,
                     }
                 )
             # All tool results go back in a single user message.
