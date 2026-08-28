@@ -125,7 +125,9 @@ def test_junit_records_the_models_as_properties():
 def test_junit_system_out_carries_the_reply_for_triage():
     root = ET.fromstring(reporting.to_junit(REPORT, RUNS))
     broken = next(tc for tc in root.iter("testcase") if tc.get("name") == "broken")
-    assert "Refund approved" in (broken.find("system-out").text or "")
+    system_out = broken.find("system-out")
+    assert system_out is not None
+    assert "Refund approved" in (system_out.text or "")
 
 
 # --- Markdown --------------------------------------------------------------
