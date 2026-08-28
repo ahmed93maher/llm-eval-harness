@@ -128,6 +128,39 @@ python scripts/judge_agreement.py
 
 ---
 
+## Reports
+
+Every run writes `results/report-<stamp>.json` (the summary) and
+`results/runs-<stamp>.json` (every reply, verdict and score). Three renderers
+turn those into something readable:
+
+```bash
+python scripts/report_html.py --open     # a self-contained HTML report for a human
+python scripts/report_junit.py           # JUnit XML for Xray / Jenkins / GitHub
+python scripts/report_summary.py         # Markdown; --github writes the CI run page
+```
+
+**HTML** — pass rates, failures first and expanded by default, every reply with
+its grader verdicts and judge scores. Arabic renders right-to-left (`dir="auto"`),
+which matters when the cases that need the most scrutiny are the Arabic ones.
+No dependencies, no JavaScript: it opens from disk or attaches to an email.
+
+**JUnit XML** — one `<testcase>` per eval case, `classname` set to the case's
+first tag so tools group by `arabic` / `injection` / `pii`. A **flaky case is
+reported as a `<failure type="flaky">`**: JUnit has no flaky state, and silently
+passing an intermittent case is the failure mode this harness exists to prevent.
+The reply and failed graders go in `<system-out>` so a failure can be triaged
+without opening the JSON.
+
+**Markdown** — a table of every case, failures first, plus the baseline
+comparison. With `--github` it appends to `$GITHUB_STEP_SUMMARY`, so the workflow
+run page shows what broke without anyone downloading an artifact.
+
+CI runs all three on every job, under `if: always()` — a red run is exactly when
+the reports matter most.
+
+---
+
 ## Load testing
 
 LLM endpoints fail differently from ordinary APIs — they are slow, they are rate

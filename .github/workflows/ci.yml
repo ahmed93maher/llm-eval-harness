@@ -19,14 +19,34 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
+
       - name: Validate the dataset
         run: python scripts/validate_dataset.py
-      - name: Unit-test the graders
+
+      - name: Unit-test the graders and reporters
         run: pytest -q
+
       - name: Offline suite against recorded fixtures
         env:
           EVAL_FAKE: "1"
         run: python scripts/run_eval.py --no-judge --reps 1 --no-gate
+
+      # always() so a failing suite still produces its reports -- a red run is
+      # exactly when you most need to see what broke.
+      - name: Reports
+        if: always()
+        run: |
+          python scripts/report_junit.py
+          python scripts/report_html.py
+          python scripts/report_summary.py --github
+
+      - name: Keep the reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-offline-reports
+          path: results/
+          retention-days: 14
 
   # Nightly and on demand. Costs money, so it does not run per push.
   judged:
@@ -40,14 +60,23 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
+
       - name: Run the suite and gate against the baseline
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python scripts/run_eval.py
-      - name: Keep the results
+
+      - name: Reports
+        if: always()
+        run: |
+          python scripts/report_junit.py
+          python scripts/report_html.py
+          python scripts/report_summary.py --github
+
+      - name: Keep the reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: eval-results
+          name: eval-judged-reports
           path: results/
           retention-days: 30
