@@ -1,0 +1,9 @@
+# Normalise line endings: LF in the repository, native in the working tree.
+# Without this, committing from Windows produces CRLF noise in every diff and
+# the CI runners (Linux) see files that differ from what you edited.
+* text=auto eol=lf
+
+# Binary assets must never be line-ending converted.
+*.png binary
+*.jpg binary
+*.pdf binary
