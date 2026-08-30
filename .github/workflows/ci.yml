@@ -35,6 +35,7 @@ jobs:
       # exactly when you most need to see what broke.
       - name: Reports
         if: always()
+        continue-on-error: true
         run: |
           python scripts/report_junit.py
           python scripts/report_html.py
@@ -68,6 +69,7 @@ jobs:
 
       - name: Reports
         if: always()
+        continue-on-error: true
         run: |
           python scripts/report_junit.py
           python scripts/report_html.py
