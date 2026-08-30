@@ -213,18 +213,27 @@ costs roughly $2.
 
 ---
 
-## Honest limitations
+## Design trade-offs
 
-- `data/fixtures.json` currently holds hand-authored test doubles, not recorded
-  model output. Run `scripts/record_fixtures.py` with a key to replace them.
-- No baseline is committed yet; the first judged run creates it.
-- Judge agreement hasn't been measured. Until it has, treat judge scores as
-  unvalidated — which is the entire point of that check.
-- The runner is sequential. Fine at 15 cases; past ~50 it wants a bounded worker
-  pool, at the cost of hitting rate limits.
-- Some assertions use substring matching, which is blunt: a reply saying "it
-  hasn't shipped yet" can trip a `must_not_contain: ["shipped"]` check. The
-  trade-off is deliberate — crude checks are free and unambiguous — but it's the
-  first thing to tighten as the dataset grows.
-- 15 cases is a demonstration, not coverage. The structure scales; the dataset
-  needs to grow with the product.
+- **The runner is sequential.** Fine at 15 cases; past ~50 it wants a bounded
+  worker pool. The cost of concurrency is 429s that then look like quality
+  failures unless the error handling is careful — worth it at scale, not yet.
+- **Some assertions use substring matching**, which is blunt: a reply saying "it
+  hasn't shipped yet" can trip a `must_not_contain: ["shipped"]` check. Crude
+  checks are free, instant and unambiguous; the alternatives are tighter phrases
+  or moving that judgement to the rubric. Deliberate, and the first thing to
+  tighten as the dataset grows.
+- **15 cases is a demonstration, not coverage.** The structure scales; a real
+  dataset grows with the product and its incident history.
+- **The judge sees tool calls and their results, but not the full conversation.**
+  Enough to score faithfulness against what the agent was told; not enough to
+  catch an error made across several turns.
+
+## Roadmap
+
+- Replace the hand-authored `data/fixtures.json` with real recordings
+  (`scripts/record_fixtures.py`) so offline runs grade genuine model output.
+- Commit a baseline from the first judged run, so regressions have a reference.
+- Measure judge agreement against hand labels and publish the number — until
+  then, judge scores are unvalidated, which is exactly what that check is for.
+- Parallelise the runner behind a concurrency cap.
