@@ -1,5 +1,7 @@
 # LLM Evaluation Harness
 
+[![eval](https://github.com/ahmed93maher/llm-eval-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmed93maher/llm-eval-harness/actions/workflows/ci.yml)
+
 **A test harness for a system that answers differently every time you ask it.**
 
 The system under test is a small customer-support agent: it replies over a
