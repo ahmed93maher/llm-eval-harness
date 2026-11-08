@@ -16,7 +16,8 @@ if TYPE_CHECKING:
     # Import only for type checking: `from __future__ import annotations` keeps
     # these unevaluated at runtime, so the offline path still works with the
     # anthropic package absent.
-    from anthropic.types import MessageParam, ToolParam
+    import anthropic
+    from anthropic.types import MessageParam, ToolParam, ToolResultBlockParam
 
 SYSTEM_PROMPT = """You are a customer support agent for a retail company, replying \
 over SMS and WhatsApp.
@@ -104,16 +105,21 @@ def _fake_reply(message: str, account_id: str) -> AgentOutput:
 # --- live mode -------------------------------------------------------------
 
 
-def run_agent(message: str, account_id: str) -> AgentOutput:
-    """Send one customer message through the agent and return what came back."""
+def run_agent(message: str, account_id: str, client: anthropic.Anthropic | None = None) -> AgentOutput:
+    """Send one customer message through the agent and return what came back.
+
+    Never raises for an API failure: a failed run is a result to grade, not a
+    crash that hides every other case's result. A bug in the harness itself
+    still raises, loudly, because grading it as an agent failure would hide it.
+    """
     if config.FAKE:
         return _fake_reply(message, account_id)
 
     import anthropic
 
-    client = anthropic.Anthropic()
+    client = client or anthropic.Anthropic()
     started = time.perf_counter()
-    tool_calls: list[dict[str, Any]] = []
+    out = AgentOutput(reply="")
 
     messages: list[MessageParam] = [
         {
@@ -124,35 +130,37 @@ def run_agent(message: str, account_id: str) -> AgentOutput:
 
     try:
         while True:
+            if out.turns >= config.AGENT_MAX_TURNS:
+                out.error = f"turn limit ({config.AGENT_MAX_TURNS}) reached"
+                break
+
             response = client.messages.create(
                 model=config.AGENT_MODEL,
                 max_tokens=config.AGENT_MAX_TOKENS,
                 system=SYSTEM_PROMPT,
                 tools=[LOOKUP_ORDER_TOOL],
+                output_config={"effort": config.AGENT_EFFORT},
                 messages=messages,
             )
+            out.turns += 1
+            out.stop_reason = response.stop_reason
+            out.input_tokens += response.usage.input_tokens
+            out.output_tokens += response.usage.output_tokens
 
             # A policy decline from the API is a different failure from the agent
             # politely declining an off-topic request. Keep them distinguishable.
             if response.stop_reason == "refusal":
-                return AgentOutput(
-                    reply="",
-                    tool_calls=tool_calls,
-                    latency_ms=int((time.perf_counter() - started) * 1000),
-                    refused=True,
-                    error="api_refusal",
-                )
+                out.refused = True
+                out.error = "api_refusal"
+                break
 
             if response.stop_reason != "tool_use":
-                text = "".join(b.text for b in response.content if b.type == "text")
-                return AgentOutput(
-                    reply=text.strip(),
-                    tool_calls=tool_calls,
-                    latency_ms=int((time.perf_counter() - started) * 1000),
-                )
+                out.reply = "".join(b.text for b in response.content if b.type == "text").strip()
+                break
 
+            # The full content goes back, thinking blocks included, not just the text.
             messages.append({"role": "assistant", "content": response.content})
-            results = []
+            results: list[ToolResultBlockParam] = []
             for block in response.content:
                 if block.type != "tool_use":
                     continue
@@ -161,7 +169,7 @@ def run_agent(message: str, account_id: str) -> AgentOutput:
                 # Record the result, not just the call: the judge cannot assess
                 # whether a claim is grounded without seeing what the agent was
                 # actually told.
-                tool_calls.append({"name": block.name, "args": args, "result": result})
+                out.tool_calls.append({"name": block.name, "args": args, "result": result})
                 results.append(
                     {
                         "type": "tool_result",
@@ -172,10 +180,8 @@ def run_agent(message: str, account_id: str) -> AgentOutput:
             # All tool results go back in a single user message.
             messages.append({"role": "user", "content": results})
 
-    except Exception as exc:  # noqa: BLE001 - the runner records, never crashes
-        return AgentOutput(
-            reply="",
-            tool_calls=tool_calls,
-            latency_ms=int((time.perf_counter() - started) * 1000),
-            error=f"{type(exc).__name__}: {exc}",
-        )
+    except anthropic.APIError as exc:
+        out.error = f"{type(exc).__name__}: {exc}"
+
+    out.latency_ms = int((time.perf_counter() - started) * 1000)
+    return out

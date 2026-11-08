@@ -85,11 +85,17 @@ def judge(case: Case, out: AgentOutput) -> JudgeVerdict | None:
     import anthropic
 
     client = anthropic.Anthropic()
+    # No refusal fallback to another model, deliberately: the judge is a
+    # calibrated instrument, and silently swapping the model that scores a run
+    # would make its scores incomparable with the ones agreement was measured on.
     response = client.messages.parse(
         model=config.JUDGE_MODEL,
         max_tokens=config.JUDGE_MAX_TOKENS,
         system=RUBRIC,
         messages=[{"role": "user", "content": _prompt(case, out)}],
         output_format=JudgeVerdict,
+        output_config={"effort": config.JUDGE_EFFORT},
     )
+    if response.stop_reason in ("refusal", "max_tokens"):
+        return None  # reported as unjudged, never as a score
     return response.parsed_output

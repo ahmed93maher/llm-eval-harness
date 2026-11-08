@@ -207,11 +207,11 @@ loadtest/agent_load.js  k6 scenario
 
 | Role | Default | Why |
 |---|---|---|
-| Agent under test | `claude-haiku-4-5` | Cheap and fast; called hundreds of times per run |
-| Judge | `claude-opus-5` | The grader must be at least as capable as what it grades |
+| Agent under test | `claude-haiku-5-5` | Cheap and fast; called hundreds of times per run |
+| Judge | `claude-opus-5-5` | The grader must be at least as capable as what it grades |
 
-Overridable via `AGENT_MODEL` / `JUDGE_MODEL`. A full 15-case × 3-rep judged run
-costs roughly $2.
+Overridable via `AGENT_MODEL` / `JUDGE_MODEL`. A full 15-case × 3-rep judged run used to
+cost roughly $2 on the previous models (Haiku 4.5, Opus 5); not yet re-measured on the current ones.
 
 ---
 

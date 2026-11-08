@@ -40,6 +40,11 @@ class AgentOutput(BaseModel):
         description="API returned stop_reason=refusal -- not the same as the agent politely declining",
     )
     error: str | None = None
+    # How the run went, beyond the reply: the cost and shape of the trajectory.
+    turns: int = Field(default=0, description="model requests made in this run")
+    stop_reason: str | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class GraderResult(BaseModel):

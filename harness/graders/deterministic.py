@@ -140,6 +140,9 @@ def asks_for_missing_info(case: Case, out: AgentOutput) -> GraderResult:
 def completed(case: Case, out: AgentOutput) -> GraderResult:
     if out.error:
         return _fail("completed", out.error)
+    if out.stop_reason == "max_tokens":
+        # The reply was cut off mid-sentence; it may still read as plausible.
+        return _fail("completed", "reply truncated at max_tokens")
     if not out.reply.strip():
         return _fail("completed", "empty reply")
     return _ok("completed")
