@@ -7,7 +7,7 @@ confident readings that mean nothing.
 Workflow:
   1. python scripts/run_eval.py                    -> results/runs-<stamp>.json
   2. python scripts/judge_agreement.py --init results/runs-<stamp>.json
-       writes data/human_labels.yaml with each reply, the tool calls and results
+       writes agents/<agent>/data/human_labels.yaml with each reply, the tool calls and results
        the judge will see, and a blank verdict field
   3. label them yourself: pass / fail, no peeking at the judge's score
   4. python scripts/judge_agreement.py             -> agreement %, disagreements
@@ -25,34 +25,39 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from harness import agreement, config, dataset  # noqa: E402
-from harness.graders import judge as judge_mod  # noqa: E402
+import agents  # noqa: E402
+from harness import agreement, config, dataset, judge as judge_mod  # noqa: E402
+from harness.system import SystemUnderTest  # noqa: E402
 
-LABELS = config.DATA / "human_labels.yaml"
 
-
-def init_labels(runs_path: str, limit: int) -> None:
+def init_labels(system: SystemUnderTest, runs_path: str, limit: int) -> None:
+    labels = system.labels_path
     runs = json.loads(Path(runs_path).read_text(encoding="utf-8"))
     existing = {}
-    if LABELS.exists():
-        for row in yaml.safe_load(LABELS.read_text(encoding="utf-8")) or []:
+    if labels.exists():
+        for row in yaml.safe_load(labels.read_text(encoding="utf-8")) or []:
             existing[(row["case_id"], row["repetition"])] = row.get("human_verdict", "")
 
     rows = agreement.label_rows(runs, existing, limit)
-    LABELS.write_text(
+    labels.write_text(
         yaml.safe_dump(rows, allow_unicode=True, sort_keys=False, width=100), encoding="utf-8"
     )
-    print(f"wrote {len(rows)} rows to {LABELS}")
+    print(f"wrote {len(rows)} rows to {labels}")
     print("label each row's human_verdict as 'pass' or 'fail', then re-run without --init")
 
 
-def measure() -> int:
-    if not LABELS.exists():
-        print(f"no labels at {LABELS} -- run with --init first")
+def measure(system: SystemUnderTest) -> int:
+    labels = system.labels_path
+    if not labels.exists():
+        print(f"no labels at {labels} -- run with --init first")
         return 1
-    rows = yaml.safe_load(LABELS.read_text(encoding="utf-8")) or []
-    cases = {c.id: c for c in dataset.load_cases()}
-    result = agreement.measure(rows, cases, judge_mod.judge, config.JUDGE_MIN_SCORE)
+    rows = yaml.safe_load(labels.read_text(encoding="utf-8")) or []
+    cases = {c.id: c for c in dataset.load_cases(system)}
+
+    def judge(case, out):
+        return judge_mod.judge(system.rubric, case, out)
+
+    result = agreement.measure(rows, cases, judge, config.JUDGE_MIN_SCORE)
 
     if result.stale:
         print(f"{len(result.stale)} labelled rows have no tool calls recorded, so the judge")
@@ -76,13 +81,15 @@ def measure() -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--agent", default="support", help="which system under test (agents/<name>)")
     ap.add_argument("--init", metavar="RUNS_JSON", help="seed human_labels.yaml from a results file")
     ap.add_argument("--limit", type=int, default=30, help="how many rows to label")
     args = ap.parse_args()
+    system = agents.get(args.agent)
     if args.init:
-        init_labels(args.init, args.limit)
+        init_labels(system, args.init, args.limit)
         return 0
-    return measure()
+    return measure(system)
 
 
 if __name__ == "__main__":

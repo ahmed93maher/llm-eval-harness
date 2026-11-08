@@ -4,25 +4,24 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
-from harness import config, fixtures
-from harness.agent import run_agent
-from harness.graders import deterministic, judge as judge_mod
+from harness import config, fixtures, judge as judge_mod
 from harness.schema import Case, CaseSummary, GraderRate, RunResult, SuiteReport
+from harness.system import SystemUnderTest
 
 
-def run_case(case: Case, repetitions: int, use_judge: bool) -> list[RunResult]:
+def run_case(system: SystemUnderTest, case: Case, repetitions: int, use_judge: bool) -> list[RunResult]:
     results: list[RunResult] = []
     for i in range(repetitions):
         # Offline, repetition i replays recording i, so the variance between
         # live runs survives into the offline pass rate.
-        out = fixtures.load(case.id, i) if config.FAKE else run_agent(case.message, case.account_id)
-        verdict = judge_mod.judge(case, out) if use_judge else None
+        out = fixtures.load(system.fixtures_dir, case.id, i) if config.FAKE else system.run(case)
+        verdict = judge_mod.judge(system.rubric, case, out) if use_judge else None
         results.append(
             RunResult(
                 case_id=case.id,
                 repetition=i,
                 output=out,
-                deterministic=deterministic.grade(case, out),
+                deterministic=system.grade(case, out),
                 judge=verdict,
             )
         )
@@ -61,22 +60,15 @@ def grader_rates(runs: list[RunResult]) -> list[GraderRate]:
     return list(rates.values())
 
 
-def fixture_source(cases: list[Case]) -> str:
-    """What an offline run is grading: real recordings, hand-written doubles, or both."""
-    sources = set()
-    for case in cases:
-        for p in sorted((fixtures.FIXTURES / case.id).glob("*.json")):
-            sources.add(json.loads(p.read_text(encoding="utf-8")).get("source", "recorded"))
-    return "+".join(sorted(sources)) or "none"
-
-
-def run_suite(cases: list[Case], repetitions: int | None = None, use_judge: bool = True) -> tuple[SuiteReport, list[RunResult]]:
+def run_suite(
+    system: SystemUnderTest, cases: list[Case], repetitions: int | None = None, use_judge: bool = True
+) -> tuple[SuiteReport, list[RunResult]]:
     repetitions = repetitions or config.REPETITIONS
     summaries: list[CaseSummary] = []
     all_runs: list[RunResult] = []
 
     for case in cases:
-        runs = run_case(case, repetitions, use_judge)
+        runs = run_case(system, case, repetitions, use_judge)
         all_runs.extend(runs)
         summary = summarise(case, runs)
         summaries.append(summary)
@@ -88,13 +80,14 @@ def run_suite(cases: list[Case], repetitions: int | None = None, use_judge: bool
             print(f"        - {f}")
 
     report = SuiteReport(
+        agent=system.name,
         cases=summaries,
         agent_model=config.AGENT_MODEL,
         judge_model=config.JUDGE_MODEL if use_judge else "",
         repetitions=repetitions,
         judged=use_judge and not config.FAKE,
         graders=grader_rates(all_runs),
-        source=fixture_source(cases) if config.FAKE else "live",
+        source=fixtures.sources(system.fixtures_dir, [c.id for c in cases]) if config.FAKE else "live",
     )
     return report, all_runs
 
@@ -102,8 +95,9 @@ def run_suite(cases: list[Case], repetitions: int | None = None, use_judge: bool
 def save(report: SuiteReport, runs: list[RunResult]) -> tuple[str, str]:
     config.RESULTS.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    report_path = config.RESULTS / f"report-{stamp}.json"
-    runs_path = config.RESULTS / f"runs-{stamp}.json"
+    # The timestamp leads so "newest report" sorts correctly across agents.
+    report_path = config.RESULTS / f"report-{stamp}-{report.agent}.json"
+    runs_path = config.RESULTS / f"runs-{stamp}-{report.agent}.json"
     report_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
     runs_path.write_text(
         json.dumps([r.model_dump() for r in runs], indent=2, ensure_ascii=False),

@@ -8,9 +8,9 @@ import anthropic
 from anthropic.types import Message
 
 from harness import config
-from harness.agent import run_agent
-from harness.graders.deterministic import completed
-from harness.schema import Case
+from agents.support.agent import run_agent
+from agents.support.cases import SupportCase as Case
+from agents.support.graders import completed
 
 ARGS = {"order_id": "ORD-1041", "account_id": "ACC-77"}
 CASE = Case(id="c", message="m", lang="en", account_id="ACC-77")

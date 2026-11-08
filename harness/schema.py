@@ -7,27 +7,16 @@ from pydantic import BaseModel, Field
 
 
 class Case(BaseModel):
-    """One eval case. Mirrors an entry in data/cases.yaml."""
+    """What every eval case has, whatever the agent. Each agent subclasses this
+    with its own expectations (see agents/<name>/cases.py)."""
 
     id: str
-    message: str = Field(description="what the customer sends")
+    message: str = Field(description="what the user sends")
     lang: Literal["en", "ar"]
-    account_id: str
     tags: list[str] = Field(default_factory=list)
-
-    # --- expectations ------------------------------------------------------
-    expect_tool: str | None = None
-    expect_tool_args: dict[str, Any] = Field(default_factory=dict)
-    must_contain: list[str] = Field(default_factory=list)
-    must_not_contain: list[str] = Field(default_factory=list)
-    must_ask_for: list[str] = Field(
-        default_factory=list,
-        description="agent must request this missing information rather than guess",
-    )
-    must_refuse: bool = False
     rubric: str = Field(
         default="",
-        description="what a good reply looks like; handed to the judge",
+        description="what a good reply looks like for this case; handed to the judge",
     )
 
 
@@ -126,6 +115,7 @@ class CaseSummary(BaseModel):
 
 
 class SuiteReport(BaseModel):
+    agent: str = ""
     cases: list[CaseSummary]
     agent_model: str
     judge_model: str

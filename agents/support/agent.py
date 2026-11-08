@@ -9,8 +9,12 @@ import json
 import time
 from typing import TYPE_CHECKING, Any
 
+from pathlib import Path
+
 from harness import config
 from harness.schema import AgentOutput
+
+DATA = Path(__file__).resolve().parent / "data"
 
 if TYPE_CHECKING:
     # Import only for type checking: `from __future__ import annotations` keeps
@@ -58,7 +62,7 @@ LOOKUP_ORDER_TOOL: ToolParam = {
 
 
 def _load_orders() -> dict[str, Any]:
-    with open(config.DATA / "orders.json", encoding="utf-8") as fh:
+    with open(DATA / "orders.json", encoding="utf-8") as fh:
         return json.load(fh)
 
 
@@ -87,7 +91,7 @@ def run_agent(message: str, account_id: str, client: anthropic.Anthropic | None 
     crash that hides every other case's result. A bug in the harness itself
     still raises, loudly, because grading it as an agent failure would hide it.
 
-    Always live: offline replay is the runner's job (harness/fixtures.py), so
+    Always live: offline replay is the harness's job (harness/fixtures.py), so
     this function only ever describes what the model did.
     """
     import anthropic

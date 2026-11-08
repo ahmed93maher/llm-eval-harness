@@ -103,7 +103,7 @@ def to_junit(report: dict, runs: list[dict], suite_name: str = "llm-eval") -> st
         time=f"{total_ms / 1000:.3f}",
     )
     props = ET.SubElement(suite, "properties")
-    for key in ("agent_model", "judge_model", "repetitions", "judged"):
+    for key in ("agent", "agent_model", "judge_model", "repetitions", "judged"):
         if report.get(key) not in (None, ""):
             ET.SubElement(props, "property", name=key, value=str(report[key]))
 
@@ -184,7 +184,7 @@ def to_markdown(report: dict, runs: list[dict], baseline_messages: list[str] | N
         "",
         judged_note,
         "",
-        f"agent `{report['agent_model']}`"
+        f"agent `{report.get('agent') or 'support'}` on `{report['agent_model']}`"
         + (f" · judge `{report['judge_model']}`" if report.get("judge_model") else ""),
         "",
         "| | Case | Tags | Passed | Why it failed |",
@@ -384,7 +384,8 @@ def to_html(report: dict, runs: list[dict], stamp: str) -> str:
 <title>Eval report {stamp}</title><style>{CSS}</style></head>
 <body><div class="wrap">
 <h1>LLM eval report</h1>
-<div class="sub">{stamp} &middot; agent <code>{_esc(report["agent_model"])}</code>
+<div class="sub">{stamp} &middot; agent <code>{_esc(report.get("agent") or "support")}</code>
+on <code>{_esc(report["agent_model"])}</code>
 {judge_bit} &middot; {report["repetitions"]} repetition(s) per case</div>
 {banner}
 <div class="cards">

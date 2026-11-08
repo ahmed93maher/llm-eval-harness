@@ -7,7 +7,8 @@ described a judge that never runs in the suite.
 from __future__ import annotations
 
 from harness import agreement
-from harness.schema import AgentOutput, Case, JudgeVerdict
+from agents.support.cases import SupportCase as Case
+from harness.schema import AgentOutput, JudgeVerdict
 
 CASE = Case(id="order_status", message="Where is ORD-1041?", lang="en", account_id="ACC-77", expect_tool="lookup_order")
 

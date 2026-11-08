@@ -10,79 +10,59 @@ from __future__ import annotations
 import pandas as pd
 import yaml
 
-from harness import config
 from harness.schema import Case
+from harness.system import SystemUnderTest
 
 
 class DatasetError(AssertionError):
     """Raised when the dataset itself is broken."""
 
 
-def load_cases(path=None) -> list[Case]:
-    path = path or config.DATA / "cases.yaml"
-    with open(path, encoding="utf-8") as fh:
+def load_cases(system: SystemUnderTest) -> list[Case]:
+    with open(system.cases_path, encoding="utf-8") as fh:
         raw = yaml.safe_load(fh) or []
-    return [Case(**entry) for entry in raw]
+    return [system.case_model(**entry) for entry in raw]
 
 
 def to_frame(cases: list[Case]) -> pd.DataFrame:
     return pd.DataFrame([c.model_dump() for c in cases])
 
 
-def validate(cases: list[Case]) -> pd.DataFrame:
-    """Expectations about the dataset. Raises DatasetError on the first violation."""
+def validate(system: SystemUnderTest, cases: list[Case]) -> pd.DataFrame:
+    """Expectations about the dataset. Raises DatasetError listing every violation.
+
+    The checks here hold for any agent; each agent adds its own (what makes one
+    of its cases falsifiable, which adversarial tags it must cover).
+    """
     df = to_frame(cases)
     problems: list[str] = []
 
     if df.empty:
         raise DatasetError("dataset is empty")
 
-    # 1. ids are unique -- duplicates silently double-weight a case
+    # ids are unique -- duplicates silently double-weight a case
     dupes = df["id"][df["id"].duplicated()].tolist()
     if dupes:
         problems.append(f"duplicate case ids: {dupes}")
 
-    # 2. no empty messages
+    # no empty messages
     if (df["message"].str.strip() == "").any():
         problems.append("one or more cases have an empty message")
 
-    # 3. every case carries at least one tag -- tags are how we slice results
+    # every case carries at least one tag -- tags are how we slice results
     untagged = df.loc[df["tags"].apply(len) == 0, "id"].tolist()
     if untagged:
         problems.append(f"untagged cases: {untagged}")
 
-    # 4. every case must be falsifiable: it needs at least one expectation
-    def has_expectation(row) -> bool:
-        return bool(
-            row["expect_tool"]
-            or row["must_contain"]
-            or row["must_not_contain"]
-            or row["must_ask_for"]
-            or row["must_refuse"]
-            or row["rubric"]
+    # language coverage -- an Arabic-facing product needs Arabic cases
+    arabic_share = (df["lang"] == "ar").mean()
+    if arabic_share < system.min_arabic_share:
+        problems.append(
+            f"Arabic cases are only {arabic_share:.0%} of the suite (want >= {system.min_arabic_share:.0%})"
         )
 
-    toothless = df.loc[~df.apply(has_expectation, axis=1), "id"].tolist()
-    if toothless:
-        problems.append(f"cases with no expectation (always pass, prove nothing): {toothless}")
-
-    # 5. tool args only make sense alongside an expected tool
-    orphan = df.loc[
-        (df["expect_tool"].isna()) & (df["expect_tool_args"].apply(len) > 0), "id"
-    ].tolist()
-    if orphan:
-        problems.append(f"expect_tool_args without expect_tool: {orphan}")
-
-    # 6. language coverage -- an Arabic-facing product needs Arabic cases
-    arabic_share = (df["lang"] == "ar").mean()
-    if arabic_share < 0.25:
-        problems.append(f"Arabic cases are only {arabic_share:.0%} of the suite (want >= 25%)")
-
-    # 7. adversarial coverage -- a suite of happy paths measures nothing useful
-    tags = set(t for row in df["tags"] for t in row)
-    for required in ("injection", "missing-data", "pii"):
-        if required not in tags:
-            problems.append(f"no case tagged {required!r}")
+    for check in system.dataset_checks:
+        problems.extend(check(df))
 
     if problems:
         raise DatasetError("dataset validation failed:\n  - " + "\n  - ".join(problems))

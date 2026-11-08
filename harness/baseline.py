@@ -13,10 +13,13 @@ from pathlib import Path
 from harness import config
 from harness.schema import SuiteReport
 
-BASELINE_PATH = config.BASELINES / "baseline.json"
+def path_for(agent: str) -> Path:
+    """One baseline per agent: their pass rates measure different things."""
+    return config.BASELINES / f"{agent}.json"
 
 
-def write(report: SuiteReport, path: Path = BASELINE_PATH) -> Path:
+def write(report: SuiteReport, path: Path | None = None) -> Path:
+    path = path or path_for(report.agent)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "agent_model": report.agent_model,
@@ -30,10 +33,11 @@ def write(report: SuiteReport, path: Path = BASELINE_PATH) -> Path:
     return path
 
 
-def compare(report: SuiteReport, path: Path = BASELINE_PATH) -> tuple[bool, list[str]]:
+def compare(report: SuiteReport, path: Path | None = None) -> tuple[bool, list[str]]:
     """Returns (ok, messages). ok=False means this run is a regression."""
+    path = path or path_for(report.agent)
     if not path.exists():
-        return True, [f"no baseline at {path} -- run scripts/update_baseline.py to create one"]
+        return True, [f"no baseline at {path} -- run scripts/update_baseline.py --agent {report.agent} to create one"]
 
     base = json.loads(path.read_text(encoding="utf-8"))
     messages: list[str] = []

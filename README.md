@@ -22,14 +22,14 @@ No API key needed — this runs against recorded fixtures:
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                              # 71 unit tests, ~0.5s
+pytest -q                                              # 76 unit tests, ~1s
 EVAL_FAKE=1 python scripts/run_eval.py --no-judge      # the suite, offline
 python scripts/report_html.py --open                   # the report above
 ```
 
-To see it catch a bug, edit the `"reply"` in any `data/fixtures/<case>/0.json`:
+To see it catch a bug, edit the `"reply"` in any `agents/support/data/fixtures/<case>/0.json`:
 answer an Arabic case in English, or add the words "refund approved", and run it
-again. `git checkout data/fixtures` puts it back.
+again. `git checkout agents/support/data/fixtures` puts it back.
 
 The shipped fixtures are hand-authored test doubles, and the report says so: they
 show the graders work, not how the model behaves.
@@ -104,7 +104,7 @@ rubric before trusting any suite number.
 
 ### 5. Baselines, so regressions are visible
 
-`baselines/baseline.json` holds per-case pass rates from a known-good run. New
+`baselines/<agent>.json` holds per-case pass rates from a known-good run. New
 runs diff against it and fail when quality drops beyond tolerance. Prompt edits,
 model swaps and dependency bumps all land here — drift detection with the honest
 name on it.
@@ -113,7 +113,7 @@ name on it.
 
 ## The dataset
 
-15 cases in `data/cases.yaml`, validated *before* any API call is spent: unique
+15 cases in `agents/support/data/cases.yaml`, validated *before* any API call is spent: unique
 IDs, no untagged cases, Arabic coverage ≥ 25%, and — the rule worth stealing —
 **every case must be falsifiable.** A case with no expectation attached passes
 forever and measures nothing, so the loader rejects it.
@@ -192,25 +192,35 @@ replies. Thresholds are the gate — k6 exits non-zero on breach.
 
 ## Project structure
 
+The harness core knows nothing about any one agent. An agent describes itself
+once, as a `SystemUnderTest` (`harness/system.py`): how to run a case, its
+graders, its judge rubric, and what makes one of its cases falsifiable. Every
+script takes `--agent` (default `support`).
+
 ```
-harness/
-  agent.py              the system under test: prompt, tool, agent loop
-  graders/
-    deterministic.py    11 invariant assertions, pure functions
-    judge.py            the rubric and the LLM judge
+harness/                core, agent-agnostic (a test fails if it imports an agent)
+  system.py             SystemUnderTest: the one contract between core and agent
   runner.py             run each case N times, aggregate pass rates per case and per grader
   fixtures.py           save and replay recorded runs
-  dataset.py            load and validate cases.yaml
-  baseline.py           regression gating
+  dataset.py            load cases, generic validation
+  judge.py              the LLM judge; the rubric comes from the agent
+  agreement.py          judge-vs-human agreement
+  baseline.py           regression gating, one baseline per agent
   reporting.py          HTML / JUnit / Markdown renderers
   schema.py             typed contracts (Pydantic)
   config.py             every tunable, env-overridable
-data/
-  cases.yaml            the 15 scenarios
-  orders.json           seeded test database (incl. the poisoned note)
-  fixtures/<case>/<n>.json  one recorded run per repetition, for offline replay
-scripts/                six entry points, thin CLIs
-tests/                  71 tests, no API, no network
+agents/
+  support/              the customer-support agent
+    agent.py            prompt, tool, agent loop
+    graders.py          11 invariant assertions, pure functions
+    rubric.py           what the judge scores it against
+    cases.py            its case fields and dataset rules
+    data/
+      cases.yaml        the 15 scenarios
+      orders.json       seeded test database (incl. the poisoned note)
+      fixtures/<case>/<n>.json  one recorded run per repetition, for offline replay
+scripts/                entry points, thin CLIs
+tests/                  76 tests, no API, no network
 loadtest/agent_load.js  k6 scenario
 ```
 

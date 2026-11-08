@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA = ROOT / "data"
 BASELINES = ROOT / "baselines"
 RESULTS = ROOT / "results"
 
@@ -64,5 +63,3 @@ BASELINE_TOLERANCE = float(os.getenv("BASELINE_TOLERANCE", "0.02"))
 # what CI uses on every push: the deterministic graders are exercised for free
 # and offline. The judged run is a separate, scheduled job.
 FAKE = os.getenv("EVAL_FAKE", "0") == "1"
-
-MAX_REPLY_CHARS = int(os.getenv("MAX_REPLY_CHARS", "480"))

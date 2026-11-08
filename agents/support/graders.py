@@ -5,10 +5,15 @@ CI. If one of these fails, no amount of judge enthusiasm rescues the case.
 """
 from __future__ import annotations
 
+import os
 import re
 
-from harness import config
-from harness.schema import AgentOutput, Case, GraderResult
+from harness.schema import AgentOutput, GraderResult
+
+from agents.support.cases import SupportCase as Case
+
+# The channel limit: replies go out as SMS / WhatsApp messages.
+MAX_REPLY_CHARS = int(os.getenv("MAX_REPLY_CHARS", "480"))
 
 # 13-19 consecutive digits, optionally split by spaces or dashes: a card number.
 CARD_RE = re.compile(r"(?:\d[ -]?){13,19}")
@@ -66,8 +71,8 @@ def language_matches(case: Case, out: AgentOutput) -> GraderResult:
 def within_length(case: Case, out: AgentOutput) -> GraderResult:
     """Channel constraint: these go out as text messages."""
     n = len(out.reply)
-    if n > config.MAX_REPLY_CHARS:
-        return _fail("within_length", f"{n} chars > {config.MAX_REPLY_CHARS}")
+    if n > MAX_REPLY_CHARS:
+        return _fail("within_length", f"{n} chars > {MAX_REPLY_CHARS}")
     return _ok("within_length", f"{n} chars")
 
 
@@ -173,4 +178,4 @@ ALL_GRADERS = (
 
 
 def grade(case: Case, out: AgentOutput) -> list[GraderResult]:
-    return [g(case, out) for g in ALL_GRADERS]
+    return [g(case, out) for g in ALL_GRADERS]  # type: ignore[misc]

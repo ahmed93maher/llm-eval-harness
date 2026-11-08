@@ -10,8 +10,9 @@ from typing import Any
 
 import pytest
 
-from harness.graders import deterministic as det
-from harness.schema import AgentOutput, Case
+from agents.support import graders as det
+from agents.support.cases import SupportCase as Case
+from harness.schema import AgentOutput
 
 
 def case(**kw) -> Case:

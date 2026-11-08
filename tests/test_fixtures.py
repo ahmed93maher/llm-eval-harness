@@ -6,54 +6,63 @@ never show up offline.
 """
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
+from agents.support import SYSTEM
+from agents.support import graders as deterministic
+from agents.support.cases import SupportCase as Case
 from harness import config, dataset, fixtures, reporting
-from harness.graders import deterministic
 from harness.runner import grader_rates, run_case, summarise
-from harness.schema import AgentOutput, Case, RunResult
+from harness.schema import AgentOutput, RunResult
 
 CASE = Case(id="c", message="Where is ORD-1041?", lang="en", account_id="ACC-77", tags=["x"], must_contain=["shipped"])
 
 
 @pytest.fixture
 def store(tmp_path, monkeypatch):
-    monkeypatch.setattr(fixtures, "FIXTURES", tmp_path)
     monkeypatch.setattr(config, "FAKE", True)
-    return tmp_path
+    return tmp_path / "fixtures"
 
 
-def test_each_repetition_replays_its_own_recording(store):
-    fixtures.save("c", 0, AgentOutput(reply="It shipped.", stop_reason="end_turn"))
-    fixtures.save("c", 1, AgentOutput(reply="It is on its way.", stop_reason="end_turn"))
-    runs = run_case(CASE, repetitions=2, use_judge=False)
+@pytest.fixture
+def system(tmp_path):
+    return dataclasses.replace(SYSTEM, data_dir=tmp_path)
+
+
+def test_each_repetition_replays_its_own_recording(store, system):
+    fixtures.save(store, "c", 0, AgentOutput(reply="It shipped.", stop_reason="end_turn"))
+    fixtures.save(store, "c", 1, AgentOutput(reply="It is on its way.", stop_reason="end_turn"))
+    runs = run_case(system, CASE, repetitions=2, use_judge=False)
     assert [r.output.reply for r in runs] == ["It shipped.", "It is on its way."]
     # The second recording lacks "shipped": offline replay now shows the flake.
     assert summarise(CASE, runs).flaky
 
 
 def test_a_missing_recording_fails_loudly(store):
-    out = fixtures.load("c", 3)
+    out = fixtures.load(store, "c", 3)
     assert out.error == "no fixture recorded for c#3"
     assert not deterministic.completed(CASE, out).passed
 
 
 def test_missing_recordings_are_listed_before_a_run(store):
-    fixtures.save("c", 0, AgentOutput(reply="x"))
-    assert fixtures.missing(["c"], 2) == ["c#1"]
+    fixtures.save(store, "c", 0, AgentOutput(reply="x"))
+    assert fixtures.missing(store, ["c"], 2) == ["c#1"]
 
 
 def test_rerecording_drops_old_repetitions(store):
     for rep in range(3):
-        fixtures.save("c", rep, AgentOutput(reply="old"))
-    fixtures.clear("c")
-    fixtures.save("c", 0, AgentOutput(reply="new"))
-    assert fixtures.missing(["c"], 3) == ["c#1", "c#2"]
+        fixtures.save(store, "c", rep, AgentOutput(reply="old"))
+    fixtures.clear(store, "c")
+    fixtures.save(store, "c", 0, AgentOutput(reply="new"))
+    assert fixtures.missing(store, ["c"], 3) == ["c#1", "c#2"]
 
 
 def test_every_shipped_case_has_a_first_recording():
     """The offline CI job runs --reps 1; a case without recording 0 would fail it."""
-    assert fixtures.missing([c.id for c in dataset.load_cases()], 1) == []
+    cases = dataset.load_cases(SYSTEM)
+    assert fixtures.missing(SYSTEM.fixtures_dir, [c.id for c in cases], 1) == []
 
 
 # --- applicable ------------------------------------------------------------
