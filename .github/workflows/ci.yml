@@ -26,10 +26,13 @@ jobs:
       - name: Unit-test the graders and reporters
         run: pytest -q
 
-      - name: Offline suite against recorded fixtures
+      - name: Offline suite against recorded fixtures, every agent
         env:
           EVAL_FAKE: "1"
-        run: python scripts/run_eval.py --no-judge --reps 1 --no-gate
+        run: |
+          for agent in support shop; do
+            python scripts/run_eval.py --agent "$agent" --no-judge --reps 1 --no-gate
+          done
 
       # always() so a failing suite still produces its reports -- a red run is
       # exactly when you most need to see what broke.
@@ -37,9 +40,11 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          python scripts/report_junit.py
-          python scripts/report_html.py
-          python scripts/report_summary.py --github
+          for agent in support shop; do
+            python scripts/report_junit.py --agent "$agent"
+            python scripts/report_html.py --agent "$agent"
+            python scripts/report_summary.py --agent "$agent" --github
+          done
 
       - name: Keep the reports
         if: always()
@@ -62,18 +67,27 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
 
-      - name: Run the suite and gate against the baseline
+      # Each agent is gated against its own baseline; one failing agent still
+      # lets the other run, and the step fails if either regressed.
+      - name: Run each agent's suite and gate against its baseline
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: python scripts/run_eval.py
+        run: |
+          status=0
+          for agent in support shop; do
+            python scripts/run_eval.py --agent "$agent" || status=1
+          done
+          exit $status
 
       - name: Reports
         if: always()
         continue-on-error: true
         run: |
-          python scripts/report_junit.py
-          python scripts/report_html.py
-          python scripts/report_summary.py --github
+          for agent in support shop; do
+            python scripts/report_junit.py --agent "$agent"
+            python scripts/report_html.py --agent "$agent"
+            python scripts/report_summary.py --agent "$agent" --github
+          done
 
       - name: Keep the reports
         if: always()

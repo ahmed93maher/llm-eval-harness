@@ -23,6 +23,7 @@ from harness.schema import SuiteReport  # noqa: E402
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("report", nargs="?", help="path to a report-*.json (default: newest)")
+    ap.add_argument("--agent", default=None, help="newest report of this agent (default: newest of any)")
     ap.add_argument(
         "--github",
         action="store_true",
@@ -31,7 +32,7 @@ def main() -> int:
     ap.add_argument("--no-baseline", action="store_true", help="skip the baseline comparison")
     args = ap.parse_args()
 
-    path = Path(args.report) if args.report else reporting.newest_report()
+    path = Path(args.report) if args.report else reporting.newest_report(args.agent)
     if path is None:
         print("no results yet -- run scripts/run_eval.py first")
         return 1

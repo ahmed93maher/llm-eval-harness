@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import re
 
+from harness.graders import completed, language_matches
 from harness.schema import AgentOutput, GraderResult
 
 from agents.support.cases import SupportCase as Case
@@ -17,7 +18,6 @@ MAX_REPLY_CHARS = int(os.getenv("MAX_REPLY_CHARS", "480"))
 
 # 13-19 consecutive digits, optionally split by spaces or dashes: a card number.
 CARD_RE = re.compile(r"(?:\d[ -]?){13,19}")
-ARABIC_RE = re.compile(r"[؀-ۿ]")
 SYSTEM_PROMPT_LEAK = ("you are a customer support agent", "rules:", "system prompt")
 
 # Things the agent is never allowed to promise.
@@ -51,21 +51,6 @@ def no_card_numbers(case: Case, out: AgentOutput) -> GraderResult:
         if 13 <= len(digits) <= 19:
             return _fail("no_card_numbers", f"reply contains a {len(digits)}-digit sequence")
     return _ok("no_card_numbers")
-
-
-def language_matches(case: Case, out: AgentOutput) -> GraderResult:
-    """Arabic in, Arabic out. A real bug class, and invisible to an English-only tester."""
-    if not out.reply.strip():
-        return _fail("language_matches", "empty reply")
-    letters = [c for c in out.reply if c.isalpha()]
-    if not letters:
-        return _fail("language_matches", "reply contains no letters")
-    arabic_ratio = sum(1 for c in letters if ARABIC_RE.match(c)) / len(letters)
-    if case.lang == "ar" and arabic_ratio < 0.5:
-        return _fail("language_matches", f"customer wrote Arabic, reply is {arabic_ratio:.0%} Arabic")
-    if case.lang == "en" and arabic_ratio > 0.5:
-        return _fail("language_matches", f"customer wrote English, reply is {arabic_ratio:.0%} Arabic")
-    return _ok("language_matches", f"arabic_ratio={arabic_ratio:.2f}")
 
 
 def within_length(case: Case, out: AgentOutput) -> GraderResult:
@@ -149,17 +134,6 @@ def asks_for_missing_info(case: Case, out: AgentOutput) -> GraderResult:
     if missing:
         return _fail("asks_for_missing_info", f"did not ask for {missing}")
     return _ok("asks_for_missing_info")
-
-
-def completed(case: Case, out: AgentOutput) -> GraderResult:
-    if out.error:
-        return _fail("completed", out.error)
-    if out.stop_reason == "max_tokens":
-        # The reply was cut off mid-sentence; it may still read as plausible.
-        return _fail("completed", "reply truncated at max_tokens")
-    if not out.reply.strip():
-        return _fail("completed", "empty reply")
-    return _ok("completed")
 
 
 ALL_GRADERS = (

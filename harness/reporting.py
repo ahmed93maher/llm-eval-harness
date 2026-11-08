@@ -23,8 +23,10 @@ from harness import config
 # --------------------------------------------------------------------------
 
 
-def newest_report() -> Path | None:
-    found = sorted(glob.glob(str(config.RESULTS / "report-*.json")))
+def newest_report(agent: str | None = None) -> Path | None:
+    """The newest saved report, of one agent or of any."""
+    pattern = f"report-*-{agent}.json" if agent else "report-*.json"
+    found = sorted(glob.glob(str(config.RESULTS / pattern)))
     return Path(found[-1]) if found else None
 
 

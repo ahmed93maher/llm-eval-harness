@@ -5,9 +5,9 @@ from harness.system import SystemUnderTest
 
 
 def registry() -> dict[str, SystemUnderTest]:
-    from agents import support
+    from agents import shop, support
 
-    return {s.name: s for s in (support.SYSTEM,)}
+    return {s.name: s for s in (support.SYSTEM, shop.SYSTEM)}
 
 
 def get(name: str) -> SystemUnderTest:

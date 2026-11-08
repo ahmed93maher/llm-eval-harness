@@ -10,6 +10,7 @@ import dataclasses
 
 import pytest
 
+import agents
 from agents.support import SYSTEM
 from agents.support import graders as deterministic
 from agents.support.cases import SupportCase as Case
@@ -61,8 +62,9 @@ def test_rerecording_drops_old_repetitions(store):
 
 def test_every_shipped_case_has_a_first_recording():
     """The offline CI job runs --reps 1; a case without recording 0 would fail it."""
-    cases = dataset.load_cases(SYSTEM)
-    assert fixtures.missing(SYSTEM.fixtures_dir, [c.id for c in cases], 1) == []
+    for system in agents.registry().values():
+        cases = dataset.load_cases(system)
+        assert fixtures.missing(system.fixtures_dir, [c.id for c in cases], 1) == [], system.name
 
 
 # --- applicable ------------------------------------------------------------

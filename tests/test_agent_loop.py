@@ -1,13 +1,13 @@
-"""The live agent loop against a scripted client: proves what gets recorded
+"""The support agent's live loop against a scripted client: proves what gets recorded
 (calls, results, turns, tokens, stop reason) without calling the API."""
 from __future__ import annotations
 
 from types import SimpleNamespace
 
 import anthropic
-from anthropic.types import Message
 
 from harness import config
+from tests.scripted import ScriptedClient, message, text, tool_use
 from agents.support.agent import run_agent
 from agents.support.cases import SupportCase as Case
 from agents.support.graders import completed
@@ -16,33 +16,8 @@ ARGS = {"order_id": "ORD-1041", "account_id": "ACC-77"}
 CASE = Case(id="c", message="m", lang="en", account_id="ACC-77")
 
 
-def message(content: list[dict], stop_reason: str) -> Message:
-    return Message.model_validate({
-        "id": "msg", "type": "message", "role": "assistant", "model": "stub",
-        "content": content, "stop_reason": stop_reason, "stop_sequence": None,
-        "usage": {"input_tokens": 10, "output_tokens": 5},
-    })
-
-
 def lookup(id_: str = "t1") -> dict:
-    return {"type": "tool_use", "id": id_, "name": "lookup_order", "input": ARGS}
-
-
-def text(t: str) -> dict:
-    return {"type": "text", "text": t}
-
-
-class ScriptedClient:
-    def __init__(self, replies: list[Message]):
-        self.replies = list(replies)
-        self.requests: list[dict] = []
-        self.messages = SimpleNamespace(create=self.create)
-
-    def create(self, **request):
-        # Snapshot the history as the real SDK does when it serializes the
-        # request: the agent keeps appending to the same list afterwards.
-        self.requests.append({**request, "messages": list(request["messages"])})
-        return self.replies.pop(0)
+    return tool_use(id_, "lookup_order", ARGS)
 
 
 def test_records_the_call_its_result_and_the_run():

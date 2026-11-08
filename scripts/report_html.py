@@ -19,10 +19,11 @@ from harness import reporting  # noqa: E402
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("report", nargs="?", help="path to a report-*.json (default: newest)")
+    ap.add_argument("--agent", default=None, help="newest report of this agent (default: newest of any)")
     ap.add_argument("--open", action="store_true", help="open in the default browser")
     args = ap.parse_args()
 
-    path = Path(args.report) if args.report else reporting.newest_report()
+    path = Path(args.report) if args.report else reporting.newest_report(args.agent)
     if path is None:
         print("no results yet -- run scripts/run_eval.py first")
         return 1

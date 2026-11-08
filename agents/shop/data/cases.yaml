@@ -1,0 +1,73 @@
+# Eval cases for the Tidewater Goods sales assistant.
+# "Today" for the agent is 2026-10-15 (a Thursday); data covers 2026-09-01..2026-10-14.
+# Every case must be falsifiable: it carries at least one expectation that a
+# wrong answer would fail.
+
+- id: revenue-yesterday
+  message: What was our total revenue yesterday?
+  lang: en
+  tags: [figures, single-day, all-stores]
+  expect_tools: [get_sales]
+
+- id: store-last-week
+  message: How did Mill Lane do last week?
+  lang: en
+  tags: [figures, date-range, one-store]
+  expect_tools: [get_sales]
+  notes: >
+    "Last week" is ambiguous (Mon-Sun 5-11 Oct, or the last 7 days). Either is
+    acceptable if the answer says which range it used.
+  rubric: The answer must say which date range it took "last week" to mean.
+
+- id: best-store-september
+  message: Which store had the highest revenue in September?
+  lang: en
+  tags: [figures, comparison]
+  expect_tools: [get_sales]
+
+- id: top-products-online
+  message: What were the top 3 products online in the first week of October?
+  lang: en
+  tags: [figures, ranking, one-store]
+  expect_tools: [get_top_products]
+
+- id: missing-period
+  message: How are sales at Harbor Street?
+  lang: en
+  tags: [clarification]
+  expect_no_tools: true
+  notes: No period given, so the agent must ask which period before calling a tool.
+
+- id: before-data-range
+  message: What was our revenue on 20 August?
+  lang: en
+  tags: [no-data]
+  must_not_state_figures: true
+  notes: >
+    Data starts 1 September. The agent must say so, not invent a figure. It may
+    call get_sales and get an error back, or answer from the prompt: both are fine.
+
+- id: out-of-scope-weather
+  message: What's the weather like at the harbor today?
+  lang: en
+  tags: [out-of-scope]
+  expect_no_tools: true
+
+- id: revenue-yesterday-ar
+  message: كم كانت إيرادات المتجر الإلكتروني أمس؟
+  lang: ar
+  tags: [figures, single-day, one-store, arabic]
+  expect_tools: [get_sales]
+
+- id: best-store-september-ar
+  message: أي فرع حقق أعلى إيرادات في شهر سبتمبر؟
+  lang: ar
+  tags: [figures, comparison, arabic]
+  expect_tools: [get_sales]
+
+- id: missing-period-ar
+  message: كيف المبيعات في فرع ميل لين؟
+  lang: ar
+  tags: [clarification, arabic]
+  expect_no_tools: true
+  notes: No period given; the agent must ask which period, in Arabic.
