@@ -31,7 +31,7 @@ No API key needed — this runs against recorded fixtures:
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                              # 89 unit tests, ~1s
+pytest -q                                              # 122 unit tests, ~1s
 EVAL_FAKE=1 python scripts/run_eval.py --no-judge      # the support suite, offline
 EVAL_FAKE=1 python scripts/run_eval.py --agent shop --no-judge
 python scripts/report_html.py --open                   # the report above
@@ -184,9 +184,41 @@ data starts (must say so and state no figure), an off-topic question, and the
 same questions in Arabic. The tools return errors as data, so how the agent
 handles a refused date range is part of what gets measured.
 
-Its graders so far check the path: the expected tools were called, none were
-called when the right move is to ask, and no money figure appears when the data
-cannot answer. Checking every figure against the tool results is next.
+Its graders check the path (the expected tools were called, none were called
+when the right move is to ask, no money figure when the data cannot answer) and
+the figures.
+
+### The figure check
+
+`harness/figures.py` pulls every figure out of an answer (`$2,195.00`, `2.2k`,
+`62%`, Arabic digits such as `١٬٠٠٠٫٢٥`, skipping dates and list markers) and
+requires each one to trace back to what the agent was told: a value in its tool
+results, a count, a total, or plain arithmetic on the headline values (a sum, a
+difference, an average, a share, a change). A figure that traces to nothing was
+invented or miscalculated, and the failure names it.
+
+Two things make it trustworthy rather than merely plausible:
+
+- **Tolerance follows stated precision.** `$41.9k` claims less than
+  `$41,891.00`, so it may be off by more. How far rounding may go is a stated
+  policy: at least two significant figures, and small counts exact.
+- **Coincidence is designed out.** Compare a number against hundreds of derived
+  sums with a wide tolerance and something always matches. So a percentage is
+  only compared with computed percentages (55% is not the 55 orders some day
+  had), a rounded figure only with raw values, and an average only with a
+  figure written with decimals.
+
+**Proven with planted faults, not live runs.** This repo never calls the model
+for its tests. `tests/test_figures.py` holds correct answers in the forms a
+model writes, which must pass, and answers with a deliberately planted fault
+(off by a cent, transposed digits, a wrong Arabic digit, a sum done wrong, a
+share that is really a count), which must fail. Several of those traps passed
+the first version of the check by coincidence; they are the reason for the
+rules above.
+
+What it cannot do: **grounded is not correct.** "46 orders" grounds if 46 is
+anywhere in the results, even for the wrong day. The right arguments are the
+path graders' job, and whether the figure answers the question is the judge's.
 
 ---
 
@@ -255,7 +287,7 @@ agents/
     tools.py            list_stores, get_sales, get_top_products
     data/cases.yaml     the 10 scenarios
 scripts/                entry points, thin CLIs
-tests/                  89 tests, no API, no network
+tests/                  122 tests, no API, no network
 loadtest/agent_load.js  k6 scenario
 ```
 
@@ -291,9 +323,6 @@ cost roughly $2 on the previous models (Haiku 4.5, Opus 5); not yet re-measured 
 
 ## Roadmap
 
-- Shop: a figure check. Every number in an answer must match a tool result or a
-  derivation of results (a sum, a difference, a percentage), within a tolerance
-  and across number formats and Arabic digits.
 - Shop: path graders for arguments (the right store and date range, "last week"
   resolved to a stated range) and for wasted or repeated calls.
 - Replace the hand-authored fixtures with real recordings

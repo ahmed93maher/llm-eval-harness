@@ -1,14 +1,16 @@
-"""The shop agent's graders: did it use the tools it should, and did it keep
-quiet about figures the data cannot give?
+"""The shop agent's graders: did it use the tools it should, does every
+figure it states trace back to the data, and did it keep quiet about figures
+the data cannot give?
 
-Each is (case, out) -> GraderResult. Checking each figure against the tool
-results is the next step (the figure check); these are the path basics.
+Each is (case, out) -> GraderResult.
 """
 from __future__ import annotations
 
 import re
 
+from agents.shop import backoffice
 from agents.shop.cases import ShopCase as Case
+from harness import figures
 from harness.graders import completed, language_matches
 from harness.schema import AgentOutput, GraderResult
 
@@ -54,4 +56,25 @@ def no_figures_stated(case: Case, out: AgentOutput) -> GraderResult:
     return GraderResult(name=name, passed=True)
 
 
-ALL_GRADERS = (completed, language_matches, expected_tools_called, no_tools_when_none_expected, no_figures_stated)
+def figures_grounded(case: Case, out: AgentOutput) -> GraderResult:
+    """Every figure in the answer is a tool result, or plain arithmetic on tool
+    results (see harness/figures.py). The check for the confident wrong number."""
+    name = "figures_grounded"
+    stated = figures.extract(out.reply)
+    if not stated:
+        return GraderResult(name=name, passed=True, applicable=False, detail="no figures stated")
+    # The prompt tells the agent the shop has three stores; it may say so.
+    bad = figures.ungrounded(out.reply, out.tool_calls, case.message, known=(len(backoffice.STORES),))
+    if bad:
+        return GraderResult(name=name, passed=False, detail=f"not in the tool results: {bad}")
+    return GraderResult(name=name, passed=True, detail=f"{len(stated)} figures grounded")
+
+
+ALL_GRADERS = (
+    completed,
+    language_matches,
+    expected_tools_called,
+    no_tools_when_none_expected,
+    no_figures_stated,
+    figures_grounded,
+)
