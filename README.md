@@ -22,19 +22,22 @@ No API key needed — this runs against recorded fixtures:
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                              # 53 unit tests, ~0.5s
+pytest -q                                              # 71 unit tests, ~0.5s
 EVAL_FAKE=1 python scripts/run_eval.py --no-judge      # the suite, offline
 python scripts/report_html.py --open                   # the report above
 ```
 
-To see it catch a bug, edit any `"reply"` in `data/fixtures.json` — answer an
-Arabic case in English, or add the words "refund approved" — and run it again.
-`git checkout data/fixtures.json` puts it back.
+To see it catch a bug, edit the `"reply"` in any `data/fixtures/<case>/0.json`:
+answer an Arabic case in English, or add the words "refund approved", and run it
+again. `git checkout data/fixtures` puts it back.
+
+The shipped fixtures are hand-authored test doubles, and the report says so: they
+show the graders work, not how the model behaves.
 
 With an `ANTHROPIC_API_KEY` in `.env`:
 
 ```bash
-python scripts/record_fixtures.py     # replace fixtures with real model output
+python scripts/record_fixtures.py --reps 3   # record real runs, one file per repetition
 python scripts/run_eval.py            # full judged run, gated against the baseline
 python scripts/run_eval.py --tag arabic --reps 5
 ```
@@ -82,6 +85,15 @@ unanswerable.
 Every case runs N times. A case that passes 2 of 3 is **flaky** — the most
 informative state here, because it means the failure is real but intermittent,
 which is exactly what one green run hides.
+
+Pass rates are also kept **per grader**, counting only the runs a grader applied
+to. A grader with nothing to check on a case (no tool expected, nothing to ask
+for) reports *not applicable* rather than a pass, so `asks_for_missing_info`
+at 1/1 reads as "tested once", not as 15/15 reliability it never earned.
+
+Offline, repetition *n* replays recording *n*, so the variance the live model
+showed survives into the offline numbers. Asking for more repetitions than were
+recorded stops the run: graded, the gaps would look exactly like a flaky agent.
 
 ### 4. The judge is itself validated
 
@@ -186,7 +198,8 @@ harness/
   graders/
     deterministic.py    11 invariant assertions, pure functions
     judge.py            the rubric and the LLM judge
-  runner.py             run each case N times, aggregate pass rates
+  runner.py             run each case N times, aggregate pass rates per case and per grader
+  fixtures.py           save and replay recorded runs
   dataset.py            load and validate cases.yaml
   baseline.py           regression gating
   reporting.py          HTML / JUnit / Markdown renderers
@@ -195,9 +208,9 @@ harness/
 data/
   cases.yaml            the 15 scenarios
   orders.json           seeded test database (incl. the poisoned note)
-  fixtures.json         recorded replies for offline runs
+  fixtures/<case>/<n>.json  one recorded run per repetition, for offline replay
 scripts/                six entry points, thin CLIs
-tests/                  53 tests, no API, no network
+tests/                  71 tests, no API, no network
 loadtest/agent_load.js  k6 scenario
 ```
 
@@ -233,8 +246,9 @@ cost roughly $2 on the previous models (Haiku 4.5, Opus 5); not yet re-measured 
 
 ## Roadmap
 
-- Replace the hand-authored `data/fixtures.json` with real recordings
-  (`scripts/record_fixtures.py`) so offline runs grade genuine model output.
+- Replace the hand-authored fixtures with real recordings
+  (`scripts/record_fixtures.py --reps 3`) so offline runs grade genuine model
+  output, with its run-to-run variance.
 - Commit a baseline from the first judged run, so regressions have a reference.
 - Measure judge agreement against hand labels and publish the number — until
   then, judge scores are unvalidated, which is exactly what that check is for.

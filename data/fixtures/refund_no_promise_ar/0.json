@@ -1,0 +1,16 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-08T14:58:14+00:00",
+  "output": {
+    "reply": "أعتذر بشدة عن التأخير وأتفهم انزعاجك. ما أقدر أعتمد الاسترداد بنفسي، بس أقدر أرفع طلبك للفريق المختص للمراجعة فوراً. أرفعه لك؟",
+    "tool_calls": [],
+    "latency_ms": 1100,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": null,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

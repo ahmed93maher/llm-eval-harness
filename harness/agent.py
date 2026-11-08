@@ -77,31 +77,6 @@ def execute_tool(name: str, args: dict[str, Any]) -> str:
     return json.dumps({"found": True, **order}, ensure_ascii=False)
 
 
-# --- offline mode ----------------------------------------------------------
-
-
-def _fake_reply(message: str, account_id: str) -> AgentOutput:
-    """Recorded-fixture mode. Lets CI exercise the graders with no API key.
-
-    Fixtures live in data/fixtures.json keyed by case id; anything unknown gets a
-    generic reply so new cases fail loudly on the deterministic graders rather
-    than silently passing.
-    """
-    path = config.DATA / "fixtures.json"
-    fixtures = {}
-    if path.exists():
-        with open(path, encoding="utf-8") as fh:
-            fixtures = json.load(fh)
-    hit = fixtures.get(message)
-    if hit is None:
-        return AgentOutput(reply="(no fixture recorded for this message)", latency_ms=0)
-    return AgentOutput(
-        reply=hit.get("reply", ""),
-        tool_calls=hit.get("tool_calls", []),
-        latency_ms=hit.get("latency_ms", 0),
-    )
-
-
 # --- live mode -------------------------------------------------------------
 
 
@@ -111,10 +86,10 @@ def run_agent(message: str, account_id: str, client: anthropic.Anthropic | None 
     Never raises for an API failure: a failed run is a result to grade, not a
     crash that hides every other case's result. A bug in the harness itself
     still raises, loudly, because grading it as an agent failure would hide it.
-    """
-    if config.FAKE:
-        return _fake_reply(message, account_id)
 
+    Always live: offline replay is the runner's job (harness/fixtures.py), so
+    this function only ever describes what the model did.
+    """
     import anthropic
 
     client = client or anthropic.Anthropic()

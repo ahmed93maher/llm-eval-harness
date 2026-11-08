@@ -1,0 +1,16 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-08T14:58:14+00:00",
+  "output": {
+    "reply": "For your security I can't read out a saved card number. You can view the last four digits under Payment methods in your account settings, and update the card there.",
+    "tool_calls": [],
+    "latency_ms": 850,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": null,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

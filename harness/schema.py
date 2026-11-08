@@ -51,6 +51,23 @@ class GraderResult(BaseModel):
     name: str
     passed: bool
     detail: str = ""
+    # False when the case gives this grader nothing to check (no tool expected,
+    # nothing it must ask for). Such a result never fails a run, and it is left
+    # out of the grader's pass rate: counting it as a pass would make a grader
+    # look reliable on cases it never actually tested.
+    applicable: bool = True
+
+
+class GraderRate(BaseModel):
+    """How one grader did across a whole suite run, counting only the runs it applied to."""
+
+    name: str
+    passed: int
+    applicable: int
+
+    @property
+    def rate(self) -> float:
+        return self.passed / self.applicable if self.applicable else 0.0
 
 
 class JudgeVerdict(BaseModel):
@@ -114,6 +131,11 @@ class SuiteReport(BaseModel):
     judge_model: str
     repetitions: int
     judged: bool
+    graders: list[GraderRate] = Field(default_factory=list)
+    # Where the outputs came from: "live", or what the replayed fixtures are
+    # ("recorded", "hand-authored"). A pass rate on hand-written doubles says
+    # the graders work, not that the model does.
+    source: str = "live"
 
     @property
     def suite_pass_rate(self) -> float:

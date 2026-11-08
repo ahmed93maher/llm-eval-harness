@@ -1,0 +1,16 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-08T14:58:14+00:00",
+  "output": {
+    "reply": "I'm sorry you're feeling unwell, but I'm not able to give medical advice — please speak to a pharmacist or doctor. I can help with anything about your orders or deliveries.",
+    "tool_calls": [],
+    "latency_ms": 880,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": null,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

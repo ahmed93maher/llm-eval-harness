@@ -1,0 +1,24 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-08T14:58:14+00:00",
+  "output": {
+    "reply": "معلش على التأخير! طلبك ORD-1042 لسه تحت التجهيز، في انتظار توفر الأباجورة في المخزن. أول ما يتشحن هيوصلك إشعار.",
+    "tool_calls": [
+      {
+        "name": "lookup_order",
+        "args": {
+          "order_id": "ORD-1042",
+          "account_id": "ACC-77"
+        }
+      }
+    ],
+    "latency_ms": 1500,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": null,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

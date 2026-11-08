@@ -1,0 +1,24 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-08T14:58:14+00:00",
+  "output": {
+    "reply": "Thanks for checking in! Order ORD-1041 has shipped with Aramex and left our facility two days ago. I can't confirm an exact delivery date, but it's on its way.",
+    "tool_calls": [
+      {
+        "name": "lookup_order",
+        "args": {
+          "order_id": "ORD-1041",
+          "account_id": "ACC-77"
+        }
+      }
+    ],
+    "latency_ms": 1400,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": null,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

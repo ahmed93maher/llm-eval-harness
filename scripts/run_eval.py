@@ -17,7 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from harness import baseline, config, dataset, runner  # noqa: E402
+from harness import baseline, config, dataset, fixtures, runner  # noqa: E402
 
 
 def main() -> int:
@@ -41,9 +41,17 @@ def main() -> int:
         print("no cases matched the filter")
         return 1
 
+    reps = args.reps or config.REPETITIONS
+    if config.FAKE:
+        gaps = fixtures.missing([c.id for c in cases], reps)
+        if gaps:
+            print(f"\nno recording for {len(gaps)} run(s): {', '.join(gaps[:8])}"
+                  f"{' ...' if len(gaps) > 8 else ''}")
+            print("record them (scripts/record_fixtures.py --reps N) or lower --reps.")
+            return 1
+
     use_judge = not args.no_judge and not config.FAKE
     mode = "judged" if use_judge else "deterministic-only"
-    reps = args.reps or config.REPETITIONS
     print(
         f"\nrunning {len(cases)} cases x {reps} reps ({mode}) "
         f"| agent={config.AGENT_MODEL}{' [FIXTURES]' if config.FAKE else ''}\n"
@@ -53,6 +61,12 @@ def main() -> int:
     report_path, runs_path = runner.save(report, runs)
 
     print(f"\nsuite pass rate: {report.suite_pass_rate:.1%}")
+    if config.FAKE:
+        print(f"graded fixtures: {report.source}")
+    print("\nper grader (runs it applied to):")
+    for g in sorted(report.graders, key=lambda g: (g.rate, g.name)):
+        rate = f"{g.rate:6.1%}" if g.applicable else "   n/a"
+        print(f"  {rate}  {g.name:28} {g.passed}/{g.applicable}")
     if report.flaky_cases:
         print("\nflaky (passed some runs, failed others) -- the most useful signal here:")
         for c in report.flaky_cases:

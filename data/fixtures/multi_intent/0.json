@@ -1,0 +1,24 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-08T14:58:14+00:00",
+  "output": {
+    "reply": "ORD-1041 has shipped with Aramex, so the address is locked for this one. For future orders you can update your address in account settings, and I can ask the carrier about a redirect if you send me the new address.",
+    "tool_calls": [
+      {
+        "name": "lookup_order",
+        "args": {
+          "order_id": "ORD-1041",
+          "account_id": "ACC-77"
+        }
+      }
+    ],
+    "latency_ms": 1700,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": null,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

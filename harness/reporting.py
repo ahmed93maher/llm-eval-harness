@@ -169,6 +169,11 @@ def to_markdown(report: dict, runs: list[dict], baseline_messages: list[str] | N
         else "**Deterministic-only run** — the judge did not score these replies, "
         "so subjective quality is unmeasured."
     )
+    if "hand-authored" in report.get("source", ""):
+        judged_note += (
+            " Some fixtures are **hand-authored test doubles**: this run shows the "
+            "graders work, not how the model behaves."
+        )
 
     out = [
         "## LLM eval",
@@ -197,6 +202,23 @@ def to_markdown(report: dict, runs: list[dict], baseline_messages: list[str] | N
             f"| {icon[status]} | `{case['case_id']}` | {' '.join(case['tags'])} | "
             f"{case['passes']}/{case['runs']} | {why} |"
         )
+
+    graders = report.get("graders") or []
+    if graders:
+        out += [
+            "",
+            "### Graders",
+            "",
+            "Pass rate over the runs each grader applied to; n/a runs are left out.",
+            "",
+            "| Grader | Passed | Rate |",
+            "|---|---|---|",
+        ]
+        def rate(g: dict) -> float:
+            return g["passed"] / g["applicable"] if g["applicable"] else 1.0
+        for g in sorted(graders, key=lambda g: (rate(g), g["name"])):
+            shown = f"{rate(g):.0%}" if g["applicable"] else "n/a"
+            out.append(f"| `{g['name']}` | {g['passed']}/{g['applicable']} | {shown} |")
 
     if baseline_messages:
         out += ["", "### Baseline", "", "```"] + baseline_messages + ["```"]
@@ -279,16 +301,23 @@ summary:hover { background: var(--chip); }
 .graders { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .g { font-size: 11px; padding: 3px 8px; border-radius: 5px; background: var(--pass-bg); color: var(--pass); }
 .g.no { background: var(--fail-bg); color: var(--fail); }
+.g.na { background: var(--chip); color: var(--muted); }
 .judge { font-size: 13px; color: var(--muted); }
 .judge b { color: var(--fg); }
 .meta { color: var(--muted); font-size: 12px; }
 """
 
 
+def _chip(g: dict) -> str:
+    if not g.get("applicable", True):
+        return " na"  # nothing to check on this case: shown muted, not green
+    return "" if g["passed"] else " no"
+
+
 def _run_block(run: dict) -> str:
     out = run.get("output", {})
     graders = "".join(
-        f'<span class="g{"" if g["passed"] else " no"}">{_esc(g["name"])}</span>'
+        f'<span class="g{_chip(g)}">{_esc(g["name"])}</span>'
         for g in run.get("deterministic", [])
     )
     judge = run.get("judge")

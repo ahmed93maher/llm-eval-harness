@@ -1,0 +1,24 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-08T14:58:14+00:00",
+  "output": {
+    "reply": "I can't find ORD-2001 on this account, so I'm not able to share its details. If it was placed under a different account, please contact us from that account and we'll take a look.",
+    "tool_calls": [
+      {
+        "name": "lookup_order",
+        "args": {
+          "order_id": "ORD-2001",
+          "account_id": "ACC-77"
+        }
+      }
+    ],
+    "latency_ms": 1250,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": null,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}
