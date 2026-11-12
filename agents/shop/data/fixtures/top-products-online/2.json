@@ -1,0 +1,28 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-12T21:28:10+00:00",
+  "output": {
+    "reply": "Online, 1 to 7 October, by revenue:\n1. Wool Throw Blanket: $3,916.00 (44 units)\n2. Cast Iron Teapot: $1,566.00 (29 units)\n3. Harbor Art Print: $1,155.00 (33 units)",
+    "tool_calls": [
+      {
+        "name": "get_top_products",
+        "args": {
+          "store_id": "online",
+          "start_date": "2026-10-01",
+          "end_date": "2026-10-07",
+          "limit": 3
+        },
+        "result": "{\"store_id\": \"online\", \"currency\": \"USD\", \"products\": [{\"product\": \"Wool Throw Blanket\", \"units\": 44, \"revenue\": 3916.0}, {\"product\": \"Cast Iron Teapot\", \"units\": 29, \"revenue\": 1566.0}, {\"product\": \"Harbor Art Print\", \"units\": 33, \"revenue\": 1155.0}]}",
+        "is_error": false
+      }
+    ],
+    "latency_ms": 0,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": "end_turn",
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

@@ -25,16 +25,19 @@ from typing import Literal
 from harness import config
 from harness.schema import AgentOutput
 
-# "hand-authored" marks a test double written by a person; "recorded" marks
-# genuine model output. The report says which one it graded.
-Source = Literal["recorded", "hand-authored"]
+# "recorded" marks genuine model output; "hand-authored" a correct test double
+# written by a person; "planted-fault" a test double with a deliberate fault,
+# which the graders must catch. The report says which ones it graded.
+Source = Literal["recorded", "hand-authored", "planted-fault"]
 
 
 def path(root: Path, case_id: str, repetition: int) -> Path:
     return root / case_id / f"{repetition}.json"
 
 
-def save(root: Path, case_id: str, repetition: int, out: AgentOutput, source: Source = "recorded") -> Path:
+def save(
+    root: Path, case_id: str, repetition: int, out: AgentOutput, source: Source = "recorded", fault: str = ""
+) -> Path:
     p = path(root, case_id, repetition)
     p.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -43,6 +46,8 @@ def save(root: Path, case_id: str, repetition: int, out: AgentOutput, source: So
         "saved_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "output": out.model_dump(),
     }
+    if fault:
+        payload["fault"] = fault  # what was planted, for the test that it is caught
     p.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return p
 
@@ -78,3 +83,9 @@ def sources(root: Path, case_ids: list[str]) -> str:
         for p in (root / c).glob("*.json"):
             found.add(json.loads(p.read_text(encoding="utf-8")).get("source", "recorded"))
     return "+".join(sorted(found)) or "none"
+
+
+def read_meta(root: Path, case_id: str, repetition: int) -> dict:
+    """A recording's metadata: source, model, and the planted fault if any."""
+    payload = json.loads(path(root, case_id, repetition).read_text(encoding="utf-8"))
+    return {k: v for k, v in payload.items() if k != "output"}

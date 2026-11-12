@@ -82,7 +82,7 @@ def test_a_failed_call_never_satisfies_a_requirement():
 def test_failure_names_what_was_needed_and_what_was_made():
     out = AgentOutput(reply="ok", tool_calls=[sales("harbor", "2026-10-05", "2026-10-11")])
     detail = graders.right_calls(LAST_WEEK, out).detail
-    assert "store_id=mill" in detail and "'store_id': 'harbor'" in detail
+    assert detail.startswith("missing (get_sales(store_id=mill") and "made ['get_sales(store_id=harbor" in detail
 
 
 # --- the answer names the period it used ----------------------------------------------

@@ -1,0 +1,27 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-12T21:28:10+00:00",
+  "output": {
+    "reply": "Over the last 7 days (8 to 14 October) Mill Lane took $3,240.75 from 56 orders.",
+    "tool_calls": [
+      {
+        "name": "get_sales",
+        "args": {
+          "store_id": "mill",
+          "start_date": "2026-10-08",
+          "end_date": "2026-10-14"
+        },
+        "result": "{\"store_id\": \"mill\", \"currency\": \"USD\", \"days\": [{\"date\": \"2026-10-08\", \"orders\": 6, \"units\": 13, \"revenue\": 434.0}, {\"date\": \"2026-10-09\", \"orders\": 7, \"units\": 13, \"revenue\": 461.0}, {\"date\": \"2026-10-10\", \"orders\": 12, \"units\": 18, \"revenue\": 551.5}, {\"date\": \"2026-10-11\", \"orders\": 6, \"units\": 12, \"revenue\": 374.0}, {\"date\": \"2026-10-12\", \"orders\": 6, \"units\": 13, \"revenue\": 342.5}, {\"date\": \"2026-10-13\", \"orders\": 9, \"units\": 18, \"revenue\": 590.0}, {\"date\": \"2026-10-14\", \"orders\": 10, \"units\": 16, \"revenue\": 487.75}], \"totals\": {\"orders\": 56, \"units\": 103, \"revenue\": 3240.75}}",
+        "is_error": false
+      }
+    ],
+    "latency_ms": 0,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": "end_turn",
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

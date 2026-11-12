@@ -1,0 +1,17 @@
+{
+  "source": "planted-fault",
+  "agent_model": null,
+  "saved_at": "2026-11-12T21:28:10+00:00",
+  "output": {
+    "reply": "Revenue on 20 August was $1,240.00 across all stores.",
+    "tool_calls": [],
+    "latency_ms": 0,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": "end_turn",
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "fault": "invented a figure for a date with no data"
+}

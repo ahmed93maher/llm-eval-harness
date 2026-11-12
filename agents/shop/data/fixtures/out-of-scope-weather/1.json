@@ -1,0 +1,16 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-12T21:28:10+00:00",
+  "output": {
+    "reply": "I can only help with Tidewater Goods' sales figures, so I can't tell you the weather. Is there a sales question I can answer?",
+    "tool_calls": [],
+    "latency_ms": 0,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": "end_turn",
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

@@ -100,3 +100,28 @@ def test_markdown_lists_graders_and_flags_hand_authored_fixtures():
     assert "| `completed` | 2/2 | 100% |" in md
     assert "| `asks_for_missing_info` | 0/0 | n/a |" in md
     assert "hand-authored" in md
+
+
+# --- the shipped recordings mean what they claim ---------------------------------
+
+
+def shipped() -> list[tuple]:
+    rows = []
+    for system in agents.registry().values():
+        for case in dataset.load_cases(system):
+            for p in sorted((system.fixtures_dir / case.id).glob("*.json")):
+                rows.append((system, case, int(p.stem)))
+    return rows
+
+
+@pytest.mark.parametrize("system,case,rep", shipped(), ids=lambda v: getattr(v, "id", getattr(v, "name", str(v))))
+def test_shipped_recordings_are_graded_as_labelled(system, case, rep):
+    """A correct recording passes every grader; a planted fault fails at least
+    one. Otherwise the example report would show failures that are not there,
+    or hide ones that are."""
+    meta = fixtures.read_meta(system.fixtures_dir, case.id, rep)
+    failed = [g.name for g in system.grade(case, fixtures.load(system.fixtures_dir, case.id, rep)) if not g.passed]
+    if meta["source"] == "planted-fault":
+        assert failed, f"planted fault not caught: {meta['fault']}"
+    else:
+        assert not failed, f"correct recording failed {failed}"

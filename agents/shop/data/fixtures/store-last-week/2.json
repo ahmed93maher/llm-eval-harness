@@ -1,0 +1,28 @@
+{
+  "source": "planted-fault",
+  "agent_model": null,
+  "saved_at": "2026-11-12T21:28:10+00:00",
+  "output": {
+    "reply": "Mill Lane took $2,930.00 last week, from 57 orders and 94 units.",
+    "tool_calls": [
+      {
+        "name": "get_sales",
+        "args": {
+          "store_id": "mill",
+          "start_date": "2026-10-05",
+          "end_date": "2026-10-11"
+        },
+        "result": "{\"store_id\": \"mill\", \"currency\": \"USD\", \"days\": [{\"date\": \"2026-10-05\", \"orders\": 8, \"units\": 11, \"revenue\": 299.25}, {\"date\": \"2026-10-06\", \"orders\": 4, \"units\": 8, \"revenue\": 193.75}, {\"date\": \"2026-10-07\", \"orders\": 14, \"units\": 19, \"revenue\": 616.5}, {\"date\": \"2026-10-08\", \"orders\": 6, \"units\": 13, \"revenue\": 434.0}, {\"date\": \"2026-10-09\", \"orders\": 7, \"units\": 13, \"revenue\": 461.0}, {\"date\": \"2026-10-10\", \"orders\": 12, \"units\": 18, \"revenue\": 551.5}, {\"date\": \"2026-10-11\", \"orders\": 6, \"units\": 12, \"revenue\": 374.0}], \"totals\": {\"orders\": 57, \"units\": 94, \"revenue\": 2930.0}}",
+        "is_error": false
+      }
+    ],
+    "latency_ms": 0,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": "end_turn",
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "fault": "does not say which dates 'last week' meant"
+}

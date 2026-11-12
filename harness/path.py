@@ -75,6 +75,18 @@ def describe(req: Requirement | list) -> str:
     return f"{req['tool']}({args})"
 
 
+def unmet(req: Requirement | list, calls: list[dict[str, Any]]) -> list[str]:
+    """The top-level requirements the calls do not satisfy, described: what the
+    failure message should name, rather than the whole tree."""
+    reqs = req if isinstance(req, list) else [req]
+    return [describe(r) for r in reqs if not satisfied(r, calls)]
+
+
+def describe_call(call: dict[str, Any]) -> str:
+    args = ", ".join(f"{k}={v}" for k, v in call.get("args", {}).items())
+    return f"{call.get('name')}({args})" + (" [error]" if call.get("is_error") else "")
+
+
 def tools_named(req: Requirement | list) -> set[str]:
     if isinstance(req, list):
         return set().union(*(tools_named(r) for r in req)) if req else set()

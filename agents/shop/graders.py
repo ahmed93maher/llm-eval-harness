@@ -18,7 +18,7 @@ from harness.schema import AgentOutput, GraderResult
 # A money amount: $12, 12.50, 1,234, "USD 40", "40 dollars". Dates ("20 August",
 # "2026-09-01") deliberately do not match. Arabic-Indic digits are normalised first.
 MONEY_RE = re.compile(
-    r"[$€£]\s?\d|\d[\d,]*\.\d{2}\b|\b\d{1,3}(?:,\d{3})+\b|\bUSD\s?\d|\d\s?(?:USD|dollars?)\b|\d\s?دولار",
+    r"[$€£]\s?\d[\d,]*(?:\.\d+)?|\d[\d,]*\.\d{2}\b|\b\d{1,3}(?:,\d{3})+\b|\bUSD\s?\d|\d\s?(?:USD|dollars?)\b|\d\s?دولار",
     re.IGNORECASE,
 )
 ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩٬٫", "0123456789,.")
@@ -77,10 +77,11 @@ def right_calls(case: Case, out: AgentOutput) -> GraderResult:
     name = "right_calls"
     if not case.expect_calls:
         return GraderResult(name=name, passed=True, applicable=False, detail="no calls specified")
-    if path.satisfied(case.expect_calls, out.tool_calls):
+    missing = path.unmet(case.expect_calls, out.tool_calls)
+    if not missing:
         return GraderResult(name=name, passed=True)
-    made = [f"{c.get('name')}({c.get('args')})" + (" [error]" if c.get("is_error") else "") for c in out.tool_calls]
-    return GraderResult(name=name, passed=False, detail=f"needed {path.describe(case.expect_calls)}; made {made or 'none'}")
+    made = [path.describe_call(c) for c in out.tool_calls]
+    return GraderResult(name=name, passed=False, detail=f"missing {' and '.join(missing)}; made {made or 'none'}")
 
 
 def no_repeated_calls(case: Case, out: AgentOutput) -> GraderResult:
