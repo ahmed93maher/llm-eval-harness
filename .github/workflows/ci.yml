@@ -3,10 +3,12 @@ name: eval
 on:
   push:
   pull_request:
-  schedule:
-    - cron: "0 2 * * *"   # nightly judged run
   workflow_dispatch:
 
+# Offline only, on purpose: this public repo never calls a model in CI. The
+# judged run is a local command for anyone with their own key (see README).
+# A scheduled judged job used to live here; with no key set it failed every
+# run at the API and still went green, which is worse than no job at all.
 jobs:
   # Every push. No API key, no cost, seconds to run.
   fast:
@@ -53,46 +55,3 @@ jobs:
           name: eval-offline-reports
           path: results/
           retention-days: 14
-
-  # Nightly and on demand. Costs money, so it does not run per push.
-  judged:
-    name: full judged eval
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-      - run: pip install -r requirements.txt
-
-      # Each agent is gated against its own baseline; one failing agent still
-      # lets the other run, and the step fails if either regressed.
-      - name: Run each agent's suite and gate against its baseline
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          status=0
-          for agent in support shop; do
-            python scripts/run_eval.py --agent "$agent" || status=1
-          done
-          exit $status
-
-      - name: Reports
-        if: always()
-        continue-on-error: true
-        run: |
-          for agent in support shop; do
-            python scripts/report_junit.py --agent "$agent"
-            python scripts/report_html.py --agent "$agent"
-            python scripts/report_summary.py --agent "$agent" --github
-          done
-
-      - name: Keep the reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: eval-judged-reports
-          path: results/
-          retention-days: 30

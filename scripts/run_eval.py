@@ -13,6 +13,7 @@ safe to use directly as a CI gate.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -46,6 +47,11 @@ def main() -> int:
         return 1
 
     reps = args.reps or config.REPETITIONS
+    if not config.FAKE and not os.getenv("ANTHROPIC_API_KEY"):
+        # Without a key every run fails at the API; graded, that is a suite of
+        # errors that can still pass a gate. Stop before it starts.
+        print("\nno ANTHROPIC_API_KEY set: add it to .env, or run offline with EVAL_FAKE=1")
+        return 1
     if config.FAKE:
         gaps = fixtures.missing(system.fixtures_dir, [c.id for c in cases], reps)
         if gaps:

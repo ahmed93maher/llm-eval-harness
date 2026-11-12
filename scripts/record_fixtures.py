@@ -37,6 +37,9 @@ def main() -> int:
     ap.add_argument("--case", action="append", default=[], help="only these case ids")
     args = ap.parse_args()
 
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("no ANTHROPIC_API_KEY set: add it to .env first")
+        return 1
     system = agents.get(args.agent)
     cases = dataset.load_cases(system)
     if args.case:

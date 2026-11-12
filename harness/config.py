@@ -61,5 +61,5 @@ BASELINE_TOLERANCE = float(os.getenv("BASELINE_TOLERANCE", "0.02"))
 # --- offline mode ----------------------------------------------------------
 # EVAL_FAKE=1 runs the agent from recorded fixtures instead of the API. This is
 # what CI uses on every push: the deterministic graders are exercised for free
-# and offline. The judged run is a separate, scheduled job.
+# and offline. The judged run is local only, with your own key.
 FAKE = os.getenv("EVAL_FAKE", "0") == "1"

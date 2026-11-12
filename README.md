@@ -224,16 +224,23 @@ path graders' job, and whether the figure answers the question is the judge's.
 
 ## CI
 
-`.github/workflows/ci.yml` runs two jobs on purpose, each over both agents:
+`.github/workflows/ci.yml` runs on every push, over both agents: dataset
+validation, unit tests, and each suite against its recorded fixtures. No key, no
+cost, seconds. Reports run under `if: always()`, because a red run is when they
+matter most.
 
-- **every push** — dataset validation, unit tests, and the suite against recorded
-  fixtures. No key, no cost, seconds.
-- **nightly / on demand** — the judged run, gated against the baseline.
+The judged run is deliberately **not** in CI: this public repo never calls a
+model there. Run it locally with your own key (`python scripts/run_eval.py`),
+or schedule it in your own fork. That split is still what makes an eval suite
+affordable: the expensive non-deterministic part can't run on every commit, but
+the invariants can, and the invariants are where the security-relevant failures
+live.
 
-That split is what makes an eval suite affordable: the expensive
-non-deterministic part can't run on every commit, but the invariants can — and
-the invariants are where the security-relevant failures live. Reports run under
-`if: always()`, because a red run is when they matter most.
+A scheduled judged job used to run here. With no API key set, every run failed
+at the API, and the job still went green: with no baseline to compare against,
+a suite of errors passed the gate. The live scripts now refuse to start without
+a key. A green check that tested nothing is the failure this harness exists to
+catch, so it is worth recording that it happened here.
 
 ---
 
