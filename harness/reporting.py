@@ -23,8 +23,10 @@ from harness import config
 # --------------------------------------------------------------------------
 
 
-def newest_report() -> Path | None:
-    found = sorted(glob.glob(str(config.RESULTS / "report-*.json")))
+def newest_report(agent: str | None = None) -> Path | None:
+    """The newest saved report, of one agent or of any."""
+    pattern = f"report-*-{agent}.json" if agent else "report-*.json"
+    found = sorted(glob.glob(str(config.RESULTS / pattern)))
     return Path(found[-1]) if found else None
 
 
@@ -103,7 +105,7 @@ def to_junit(report: dict, runs: list[dict], suite_name: str = "llm-eval") -> st
         time=f"{total_ms / 1000:.3f}",
     )
     props = ET.SubElement(suite, "properties")
-    for key in ("agent_model", "judge_model", "repetitions", "judged"):
+    for key in ("agent", "agent_model", "judge_model", "repetitions", "judged"):
         if report.get(key) not in (None, ""):
             ET.SubElement(props, "property", name=key, value=str(report[key]))
 
@@ -169,6 +171,11 @@ def to_markdown(report: dict, runs: list[dict], baseline_messages: list[str] | N
         else "**Deterministic-only run** — the judge did not score these replies, "
         "so subjective quality is unmeasured."
     )
+    if "hand-authored" in report.get("source", ""):
+        judged_note += (
+            " Some fixtures are **hand-authored test doubles**: this run shows the "
+            "graders work, not how the model behaves."
+        )
 
     out = [
         "## LLM eval",
@@ -179,7 +186,7 @@ def to_markdown(report: dict, runs: list[dict], baseline_messages: list[str] | N
         "",
         judged_note,
         "",
-        f"agent `{report['agent_model']}`"
+        f"agent `{report.get('agent') or 'support'}` on `{report['agent_model']}`"
         + (f" · judge `{report['judge_model']}`" if report.get("judge_model") else ""),
         "",
         "| | Case | Tags | Passed | Why it failed |",
@@ -197,6 +204,23 @@ def to_markdown(report: dict, runs: list[dict], baseline_messages: list[str] | N
             f"| {icon[status]} | `{case['case_id']}` | {' '.join(case['tags'])} | "
             f"{case['passes']}/{case['runs']} | {why} |"
         )
+
+    graders = report.get("graders") or []
+    if graders:
+        out += [
+            "",
+            "### Graders",
+            "",
+            "Pass rate over the runs each grader applied to; n/a runs are left out.",
+            "",
+            "| Grader | Passed | Rate |",
+            "|---|---|---|",
+        ]
+        def rate(g: dict) -> float:
+            return g["passed"] / g["applicable"] if g["applicable"] else 1.0
+        for g in sorted(graders, key=lambda g: (rate(g), g["name"])):
+            shown = f"{rate(g):.0%}" if g["applicable"] else "n/a"
+            out.append(f"| `{g['name']}` | {g['passed']}/{g['applicable']} | {shown} |")
 
     if baseline_messages:
         out += ["", "### Baseline", "", "```"] + baseline_messages + ["```"]
@@ -279,16 +303,23 @@ summary:hover { background: var(--chip); }
 .graders { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .g { font-size: 11px; padding: 3px 8px; border-radius: 5px; background: var(--pass-bg); color: var(--pass); }
 .g.no { background: var(--fail-bg); color: var(--fail); }
+.g.na { background: var(--chip); color: var(--muted); }
 .judge { font-size: 13px; color: var(--muted); }
 .judge b { color: var(--fg); }
 .meta { color: var(--muted); font-size: 12px; }
 """
 
 
+def _chip(g: dict) -> str:
+    if not g.get("applicable", True):
+        return " na"  # nothing to check on this case: shown muted, not green
+    return "" if g["passed"] else " no"
+
+
 def _run_block(run: dict) -> str:
     out = run.get("output", {})
     graders = "".join(
-        f'<span class="g{"" if g["passed"] else " no"}">{_esc(g["name"])}</span>'
+        f'<span class="g{_chip(g)}">{_esc(g["name"])}</span>'
         for g in run.get("deterministic", [])
     )
     judge = run.get("judge")
@@ -355,7 +386,8 @@ def to_html(report: dict, runs: list[dict], stamp: str) -> str:
 <title>Eval report {stamp}</title><style>{CSS}</style></head>
 <body><div class="wrap">
 <h1>LLM eval report</h1>
-<div class="sub">{stamp} &middot; agent <code>{_esc(report["agent_model"])}</code>
+<div class="sub">{stamp} &middot; agent <code>{_esc(report.get("agent") or "support")}</code>
+on <code>{_esc(report["agent_model"])}</code>
 {judge_bit} &middot; {report["repetitions"]} repetition(s) per case</div>
 {banner}
 <div class="cards">

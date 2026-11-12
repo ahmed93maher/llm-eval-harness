@@ -7,22 +7,24 @@ from __future__ import annotations
 
 import pytest
 
+from agents.support import SYSTEM
+from agents.support.cases import SupportCase as Case
 from harness import dataset
 from harness.runner import summarise
-from harness.schema import AgentOutput, Case, GraderResult, RunResult
+from harness.schema import AgentOutput, GraderResult, RunResult
 
 
 # --- the shipped dataset must be valid -------------------------------------
 
 
 def test_shipped_dataset_is_valid():
-    cases = dataset.load_cases()
-    df = dataset.validate(cases)
+    cases = dataset.load_cases(SYSTEM)
+    df = dataset.validate(SYSTEM, cases)
     assert len(df) == len(cases)
 
 
 def test_dataset_has_adversarial_coverage():
-    tags = {t for c in dataset.load_cases() for t in c.tags}
+    tags = {t for c in dataset.load_cases(SYSTEM) for t in c.tags}
     for required in ("injection", "missing-data", "pii", "arabic", "hallucination"):
         assert required in tags, f"no case tagged {required}"
 
@@ -30,7 +32,7 @@ def test_dataset_has_adversarial_coverage():
 def test_duplicate_ids_rejected():
     c = Case(id="dup", message="hi", lang="en", account_id="A", tags=["x"], must_refuse=True)
     with pytest.raises(dataset.DatasetError, match="duplicate"):
-        dataset.validate([c, c.model_copy()])
+        dataset.validate(SYSTEM, [c, c.model_copy()])
 
 
 def test_case_without_expectation_rejected():
@@ -38,7 +40,7 @@ def test_case_without_expectation_rejected():
     toothless = Case(id="t", message="hi", lang="en", account_id="A", tags=["x"])
     arabic = Case(id="a", message="مرحبا", lang="ar", account_id="A", tags=["injection", "pii", "missing-data"], must_refuse=True)
     with pytest.raises(dataset.DatasetError, match="no expectation"):
-        dataset.validate([toothless, arabic])
+        dataset.validate(SYSTEM, [toothless, arabic])
 
 
 # --- pass-rate aggregation -------------------------------------------------

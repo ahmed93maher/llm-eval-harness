@@ -1,0 +1,24 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-08T14:58:14+00:00",
+  "output": {
+    "reply": "أعتذر عن التأخير. الطلب ORD-1043 متأخر حالياً في مركز الفرز مع سمسا. ما أقدر أعطيك تاريخ مؤكد، بس أقدر أرفع الموضوع للفريق المختص إذا تحب.",
+    "tool_calls": [
+      {
+        "name": "lookup_order",
+        "args": {
+          "order_id": "ORD-1043",
+          "account_id": "ACC-77"
+        }
+      }
+    ],
+    "latency_ms": 1550,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": null,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

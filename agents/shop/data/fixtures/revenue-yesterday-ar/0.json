@@ -1,0 +1,27 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-08T16:15:49+00:00",
+  "output": {
+    "reply": "حقق المتجر الإلكتروني أمس (١٤ أكتوبر) إيرادات قدرها ١٬٠٠٠٫٢٥ دولار من ٢١ طلبًا (٣٠ وحدة).",
+    "tool_calls": [
+      {
+        "name": "get_sales",
+        "args": {
+          "store_id": "online",
+          "start_date": "2026-10-14",
+          "end_date": "2026-10-14"
+        },
+        "result": "{\"store_id\": \"online\", \"currency\": \"USD\", \"days\": [{\"date\": \"2026-10-14\", \"orders\": 21, \"units\": 30, \"revenue\": 1000.25}], \"totals\": {\"orders\": 21, \"units\": 30, \"revenue\": 1000.25}}",
+        "is_error": false
+      }
+    ],
+    "latency_ms": 0,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": "end_turn",
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

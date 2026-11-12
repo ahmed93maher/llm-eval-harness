@@ -1,12 +1,18 @@
-"""Record real agent outputs into data/fixtures.json for offline runs.
+"""Record live agent runs into agents/<agent>/data/fixtures/<case>/<repetition>.json.
 
-The shipped fixtures are hand-authored placeholders. Once you have an API key,
-run this to replace them with genuine model output so the offline CI job is
-grading something real.
+  python scripts/record_fixtures.py               # every case, EVAL_REPETITIONS times
+  python scripts/record_fixtures.py --reps 5      # more recordings = offline flake signal
+  python scripts/record_fixtures.py --case multi_intent
+
+Each repetition is a separate live run, so offline replay keeps the variance the
+model really showed (see harness/fixtures.py). A run that failed at the API
+(rate limit, network) is not saved: replaying it would grade the network, not
+the agent. Re-run the case instead. Turn limits and refusals are the agent's own
+behaviour, so they are saved.
 """
 from __future__ import annotations
 
-import json
+import argparse
 import os
 import sys
 from pathlib import Path
@@ -15,29 +21,44 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 os.environ["EVAL_FAKE"] = "0"  # always record live
 
-from harness import config, dataset  # noqa: E402
-from harness.agent import run_agent  # noqa: E402
+import agents  # noqa: E402
+from harness import config, dataset, fixtures  # noqa: E402
+from harness.schema import AgentOutput  # noqa: E402
+
+
+def is_infrastructure_error(out: AgentOutput) -> bool:
+    return bool(out.error) and not out.refused and not out.error.startswith("turn limit")
 
 
 def main() -> int:
-    cases = dataset.load_cases()
-    fixtures: dict[str, object] = {
-        "_comment": "Recorded from live runs by scripts/record_fixtures.py. One "
-        "sample per case -- these are test doubles for offline grading, not a "
-        "substitute for a judged run."
-    }
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--agent", default="support", help="which system under test (agents/<name>)")
+    ap.add_argument("--reps", type=int, default=config.REPETITIONS, help="recordings per case")
+    ap.add_argument("--case", action="append", default=[], help="only these case ids")
+    args = ap.parse_args()
+
+    system = agents.get(args.agent)
+    cases = dataset.load_cases(system)
+    if args.case:
+        cases = [c for c in cases if c.id in args.case]
+
+    unsaved = 0
     for case in cases:
-        out = run_agent(case.message, case.account_id)
-        status = "ok" if not out.error else out.error
-        print(f"  {case.id:32} {status} ({out.latency_ms} ms)")
-        fixtures[case.message] = {
-            "reply": out.reply,
-            "tool_calls": out.tool_calls,
-            "latency_ms": out.latency_ms,
-        }
-    path = config.DATA / "fixtures.json"
-    path.write_text(json.dumps(fixtures, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"\nwrote {path}")
+        fixtures.clear(system.fixtures_dir, case.id)
+        for rep in range(args.reps):
+            out = system.run(case)
+            if is_infrastructure_error(out):
+                unsaved += 1
+                print(f"  {case.id:32} #{rep} NOT SAVED: {out.error}")
+                continue
+            fixtures.save(system.fixtures_dir, case.id, rep, out)
+            status = out.error or "ok"
+            print(f"  {case.id:32} #{rep} {status} ({out.latency_ms} ms, {out.turns} turns)")
+
+    print(f"\nwrote {system.fixtures_dir}")
+    if unsaved:
+        print(f"{unsaved} run(s) failed at the API and were not saved; re-run those cases.")
+        return 1
     return 0
 
 

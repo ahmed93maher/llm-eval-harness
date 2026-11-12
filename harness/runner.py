@@ -4,23 +4,24 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
-from harness import config
-from harness.agent import run_agent
-from harness.graders import deterministic, judge as judge_mod
-from harness.schema import Case, CaseSummary, RunResult, SuiteReport
+from harness import config, fixtures, judge as judge_mod
+from harness.schema import Case, CaseSummary, GraderRate, RunResult, SuiteReport
+from harness.system import SystemUnderTest
 
 
-def run_case(case: Case, repetitions: int, use_judge: bool) -> list[RunResult]:
+def run_case(system: SystemUnderTest, case: Case, repetitions: int, use_judge: bool) -> list[RunResult]:
     results: list[RunResult] = []
     for i in range(repetitions):
-        out = run_agent(case.message, case.account_id)
-        verdict = judge_mod.judge(case, out) if use_judge else None
+        # Offline, repetition i replays recording i, so the variance between
+        # live runs survives into the offline pass rate.
+        out = fixtures.load(system.fixtures_dir, case.id, i) if config.FAKE else system.run(case)
+        verdict = judge_mod.judge(system.rubric, case, out) if use_judge else None
         results.append(
             RunResult(
                 case_id=case.id,
                 repetition=i,
                 output=out,
-                deterministic=deterministic.grade(case, out),
+                deterministic=system.grade(case, out),
                 judge=verdict,
             )
         )
@@ -42,13 +43,32 @@ def summarise(case: Case, runs: list[RunResult]) -> CaseSummary:
     return CaseSummary(case_id=case.id, tags=case.tags, runs=len(runs), passes=passes, failures=unique)
 
 
-def run_suite(cases: list[Case], repetitions: int | None = None, use_judge: bool = True) -> tuple[SuiteReport, list[RunResult]]:
+def grader_rates(runs: list[RunResult]) -> list[GraderRate]:
+    """Per-grader pass rates over the runs each grader applied to.
+
+    A case pass rate says which scenario broke; this says which property broke
+    across scenarios -- "language_matches fails 1 run in 5" points at the
+    prompt, wherever the case was.
+    """
+    rates: dict[str, GraderRate] = {}
+    for run in runs:
+        for g in run.deterministic:
+            rate = rates.setdefault(g.name, GraderRate(name=g.name, passed=0, applicable=0))
+            if g.applicable:
+                rate.applicable += 1
+                rate.passed += g.passed
+    return list(rates.values())
+
+
+def run_suite(
+    system: SystemUnderTest, cases: list[Case], repetitions: int | None = None, use_judge: bool = True
+) -> tuple[SuiteReport, list[RunResult]]:
     repetitions = repetitions or config.REPETITIONS
     summaries: list[CaseSummary] = []
     all_runs: list[RunResult] = []
 
     for case in cases:
-        runs = run_case(case, repetitions, use_judge)
+        runs = run_case(system, case, repetitions, use_judge)
         all_runs.extend(runs)
         summary = summarise(case, runs)
         summaries.append(summary)
@@ -60,11 +80,14 @@ def run_suite(cases: list[Case], repetitions: int | None = None, use_judge: bool
             print(f"        - {f}")
 
     report = SuiteReport(
+        agent=system.name,
         cases=summaries,
         agent_model=config.AGENT_MODEL,
         judge_model=config.JUDGE_MODEL if use_judge else "",
         repetitions=repetitions,
         judged=use_judge and not config.FAKE,
+        graders=grader_rates(all_runs),
+        source=fixtures.sources(system.fixtures_dir, [c.id for c in cases]) if config.FAKE else "live",
     )
     return report, all_runs
 
@@ -72,8 +95,9 @@ def run_suite(cases: list[Case], repetitions: int | None = None, use_judge: bool
 def save(report: SuiteReport, runs: list[RunResult]) -> tuple[str, str]:
     config.RESULTS.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    report_path = config.RESULTS / f"report-{stamp}.json"
-    runs_path = config.RESULTS / f"runs-{stamp}.json"
+    # The timestamp leads so "newest report" sorts correctly across agents.
+    report_path = config.RESULTS / f"report-{stamp}-{report.agent}.json"
+    runs_path = config.RESULTS / f"runs-{stamp}-{report.agent}.json"
     report_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
     runs_path.write_text(
         json.dumps([r.model_dump() for r in runs], indent=2, ensure_ascii=False),

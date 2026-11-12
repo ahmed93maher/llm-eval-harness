@@ -1,0 +1,24 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-08T14:58:14+00:00",
+  "output": {
+    "reply": "وعليكم السلام! طلبك ORD-1041 تم شحنه مع أرامكس وغادر المستودع قبل يومين. ما أقدر أأكد تاريخ التسليم بالضبط، بس هو في الطريق إليك.",
+    "tool_calls": [
+      {
+        "name": "lookup_order",
+        "args": {
+          "order_id": "ORD-1041",
+          "account_id": "ACC-77"
+        }
+      }
+    ],
+    "latency_ms": 1600,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": null,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

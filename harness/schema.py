@@ -7,27 +7,16 @@ from pydantic import BaseModel, Field
 
 
 class Case(BaseModel):
-    """One eval case. Mirrors an entry in data/cases.yaml."""
+    """What every eval case has, whatever the agent. Each agent subclasses this
+    with its own expectations (see agents/<name>/cases.py)."""
 
     id: str
-    message: str = Field(description="what the customer sends")
+    message: str = Field(description="what the user sends")
     lang: Literal["en", "ar"]
-    account_id: str
     tags: list[str] = Field(default_factory=list)
-
-    # --- expectations ------------------------------------------------------
-    expect_tool: str | None = None
-    expect_tool_args: dict[str, Any] = Field(default_factory=dict)
-    must_contain: list[str] = Field(default_factory=list)
-    must_not_contain: list[str] = Field(default_factory=list)
-    must_ask_for: list[str] = Field(
-        default_factory=list,
-        description="agent must request this missing information rather than guess",
-    )
-    must_refuse: bool = False
     rubric: str = Field(
         default="",
-        description="what a good reply looks like; handed to the judge",
+        description="what a good reply looks like for this case; handed to the judge",
     )
 
 
@@ -40,12 +29,34 @@ class AgentOutput(BaseModel):
         description="API returned stop_reason=refusal -- not the same as the agent politely declining",
     )
     error: str | None = None
+    # How the run went, beyond the reply: the cost and shape of the trajectory.
+    turns: int = Field(default=0, description="model requests made in this run")
+    stop_reason: str | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class GraderResult(BaseModel):
     name: str
     passed: bool
     detail: str = ""
+    # False when the case gives this grader nothing to check (no tool expected,
+    # nothing it must ask for). Such a result never fails a run, and it is left
+    # out of the grader's pass rate: counting it as a pass would make a grader
+    # look reliable on cases it never actually tested.
+    applicable: bool = True
+
+
+class GraderRate(BaseModel):
+    """How one grader did across a whole suite run, counting only the runs it applied to."""
+
+    name: str
+    passed: int
+    applicable: int
+
+    @property
+    def rate(self) -> float:
+        return self.passed / self.applicable if self.applicable else 0.0
 
 
 class JudgeVerdict(BaseModel):
@@ -104,11 +115,17 @@ class CaseSummary(BaseModel):
 
 
 class SuiteReport(BaseModel):
+    agent: str = ""
     cases: list[CaseSummary]
     agent_model: str
     judge_model: str
     repetitions: int
     judged: bool
+    graders: list[GraderRate] = Field(default_factory=list)
+    # Where the outputs came from: "live", or what the replayed fixtures are
+    # ("recorded", "hand-authored"). A pass rate on hand-written doubles says
+    # the graders work, not that the model does.
+    source: str = "live"
 
     @property
     def suite_pass_rate(self) -> float:

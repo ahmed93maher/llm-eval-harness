@@ -9,14 +9,19 @@ import json
 import time
 from typing import TYPE_CHECKING, Any
 
+from pathlib import Path
+
 from harness import config
 from harness.schema import AgentOutput
+
+DATA = Path(__file__).resolve().parent / "data"
 
 if TYPE_CHECKING:
     # Import only for type checking: `from __future__ import annotations` keeps
     # these unevaluated at runtime, so the offline path still works with the
     # anthropic package absent.
-    from anthropic.types import MessageParam, ToolParam
+    import anthropic
+    from anthropic.types import MessageParam, ToolParam, ToolResultBlockParam
 
 SYSTEM_PROMPT = """You are a customer support agent for a retail company, replying \
 over SMS and WhatsApp.
@@ -57,7 +62,7 @@ LOOKUP_ORDER_TOOL: ToolParam = {
 
 
 def _load_orders() -> dict[str, Any]:
-    with open(config.DATA / "orders.json", encoding="utf-8") as fh:
+    with open(DATA / "orders.json", encoding="utf-8") as fh:
         return json.load(fh)
 
 
@@ -76,44 +81,24 @@ def execute_tool(name: str, args: dict[str, Any]) -> str:
     return json.dumps({"found": True, **order}, ensure_ascii=False)
 
 
-# --- offline mode ----------------------------------------------------------
-
-
-def _fake_reply(message: str, account_id: str) -> AgentOutput:
-    """Recorded-fixture mode. Lets CI exercise the graders with no API key.
-
-    Fixtures live in data/fixtures.json keyed by case id; anything unknown gets a
-    generic reply so new cases fail loudly on the deterministic graders rather
-    than silently passing.
-    """
-    path = config.DATA / "fixtures.json"
-    fixtures = {}
-    if path.exists():
-        with open(path, encoding="utf-8") as fh:
-            fixtures = json.load(fh)
-    hit = fixtures.get(message)
-    if hit is None:
-        return AgentOutput(reply="(no fixture recorded for this message)", latency_ms=0)
-    return AgentOutput(
-        reply=hit.get("reply", ""),
-        tool_calls=hit.get("tool_calls", []),
-        latency_ms=hit.get("latency_ms", 0),
-    )
-
-
 # --- live mode -------------------------------------------------------------
 
 
-def run_agent(message: str, account_id: str) -> AgentOutput:
-    """Send one customer message through the agent and return what came back."""
-    if config.FAKE:
-        return _fake_reply(message, account_id)
+def run_agent(message: str, account_id: str, client: anthropic.Anthropic | None = None) -> AgentOutput:
+    """Send one customer message through the agent and return what came back.
 
+    Never raises for an API failure: a failed run is a result to grade, not a
+    crash that hides every other case's result. A bug in the harness itself
+    still raises, loudly, because grading it as an agent failure would hide it.
+
+    Always live: offline replay is the harness's job (harness/fixtures.py), so
+    this function only ever describes what the model did.
+    """
     import anthropic
 
-    client = anthropic.Anthropic()
+    client = client or anthropic.Anthropic()
     started = time.perf_counter()
-    tool_calls: list[dict[str, Any]] = []
+    out = AgentOutput(reply="")
 
     messages: list[MessageParam] = [
         {
@@ -124,35 +109,37 @@ def run_agent(message: str, account_id: str) -> AgentOutput:
 
     try:
         while True:
+            if out.turns >= config.AGENT_MAX_TURNS:
+                out.error = f"turn limit ({config.AGENT_MAX_TURNS}) reached"
+                break
+
             response = client.messages.create(
                 model=config.AGENT_MODEL,
                 max_tokens=config.AGENT_MAX_TOKENS,
                 system=SYSTEM_PROMPT,
                 tools=[LOOKUP_ORDER_TOOL],
+                output_config={"effort": config.AGENT_EFFORT},
                 messages=messages,
             )
+            out.turns += 1
+            out.stop_reason = response.stop_reason
+            out.input_tokens += response.usage.input_tokens
+            out.output_tokens += response.usage.output_tokens
 
             # A policy decline from the API is a different failure from the agent
             # politely declining an off-topic request. Keep them distinguishable.
             if response.stop_reason == "refusal":
-                return AgentOutput(
-                    reply="",
-                    tool_calls=tool_calls,
-                    latency_ms=int((time.perf_counter() - started) * 1000),
-                    refused=True,
-                    error="api_refusal",
-                )
+                out.refused = True
+                out.error = "api_refusal"
+                break
 
             if response.stop_reason != "tool_use":
-                text = "".join(b.text for b in response.content if b.type == "text")
-                return AgentOutput(
-                    reply=text.strip(),
-                    tool_calls=tool_calls,
-                    latency_ms=int((time.perf_counter() - started) * 1000),
-                )
+                out.reply = "".join(b.text for b in response.content if b.type == "text").strip()
+                break
 
+            # The full content goes back, thinking blocks included, not just the text.
             messages.append({"role": "assistant", "content": response.content})
-            results = []
+            results: list[ToolResultBlockParam] = []
             for block in response.content:
                 if block.type != "tool_use":
                     continue
@@ -161,7 +148,7 @@ def run_agent(message: str, account_id: str) -> AgentOutput:
                 # Record the result, not just the call: the judge cannot assess
                 # whether a claim is grounded without seeing what the agent was
                 # actually told.
-                tool_calls.append({"name": block.name, "args": args, "result": result})
+                out.tool_calls.append({"name": block.name, "args": args, "result": result})
                 results.append(
                     {
                         "type": "tool_result",
@@ -172,10 +159,8 @@ def run_agent(message: str, account_id: str) -> AgentOutput:
             # All tool results go back in a single user message.
             messages.append({"role": "user", "content": results})
 
-    except Exception as exc:  # noqa: BLE001 - the runner records, never crashes
-        return AgentOutput(
-            reply="",
-            tool_calls=tool_calls,
-            latency_ms=int((time.perf_counter() - started) * 1000),
-            error=f"{type(exc).__name__}: {exc}",
-        )
+    except anthropic.APIError as exc:
+        out.error = f"{type(exc).__name__}: {exc}"
+
+    out.latency_ms = int((time.perf_counter() - started) * 1000)
+    return out

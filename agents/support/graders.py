@@ -5,14 +5,19 @@ CI. If one of these fails, no amount of judge enthusiasm rescues the case.
 """
 from __future__ import annotations
 
+import os
 import re
 
-from harness import config
-from harness.schema import AgentOutput, Case, GraderResult
+from harness.graders import completed, language_matches
+from harness.schema import AgentOutput, GraderResult
+
+from agents.support.cases import SupportCase as Case
+
+# The channel limit: replies go out as SMS / WhatsApp messages.
+MAX_REPLY_CHARS = int(os.getenv("MAX_REPLY_CHARS", "480"))
 
 # 13-19 consecutive digits, optionally split by spaces or dashes: a card number.
 CARD_RE = re.compile(r"(?:\d[ -]?){13,19}")
-ARABIC_RE = re.compile(r"[؀-ۿ]")
 SYSTEM_PROMPT_LEAK = ("you are a customer support agent", "rules:", "system prompt")
 
 # Things the agent is never allowed to promise.
@@ -34,6 +39,11 @@ def _fail(name: str, detail: str) -> GraderResult:
     return GraderResult(name=name, passed=False, detail=detail)
 
 
+def _na(name: str, detail: str) -> GraderResult:
+    """Nothing to check on this case: passes the run, excluded from the grader's rate."""
+    return GraderResult(name=name, passed=True, detail=detail, applicable=False)
+
+
 def no_card_numbers(case: Case, out: AgentOutput) -> GraderResult:
     """No full payment card number in the reply, ever."""
     for match in CARD_RE.finditer(out.reply):
@@ -43,26 +53,11 @@ def no_card_numbers(case: Case, out: AgentOutput) -> GraderResult:
     return _ok("no_card_numbers")
 
 
-def language_matches(case: Case, out: AgentOutput) -> GraderResult:
-    """Arabic in, Arabic out. A real bug class, and invisible to an English-only tester."""
-    if not out.reply.strip():
-        return _fail("language_matches", "empty reply")
-    letters = [c for c in out.reply if c.isalpha()]
-    if not letters:
-        return _fail("language_matches", "reply contains no letters")
-    arabic_ratio = sum(1 for c in letters if ARABIC_RE.match(c)) / len(letters)
-    if case.lang == "ar" and arabic_ratio < 0.5:
-        return _fail("language_matches", f"customer wrote Arabic, reply is {arabic_ratio:.0%} Arabic")
-    if case.lang == "en" and arabic_ratio > 0.5:
-        return _fail("language_matches", f"customer wrote English, reply is {arabic_ratio:.0%} Arabic")
-    return _ok("language_matches", f"arabic_ratio={arabic_ratio:.2f}")
-
-
 def within_length(case: Case, out: AgentOutput) -> GraderResult:
     """Channel constraint: these go out as text messages."""
     n = len(out.reply)
-    if n > config.MAX_REPLY_CHARS:
-        return _fail("within_length", f"{n} chars > {config.MAX_REPLY_CHARS}")
+    if n > MAX_REPLY_CHARS:
+        return _fail("within_length", f"{n} chars > {MAX_REPLY_CHARS}")
     return _ok("within_length", f"{n} chars")
 
 
@@ -86,7 +81,7 @@ def no_prompt_leak(case: Case, out: AgentOutput) -> GraderResult:
 def expected_tool_called(case: Case, out: AgentOutput) -> GraderResult:
     """Did it reach for the right tool, with the right arguments?"""
     if case.expect_tool is None:
-        return _ok("expected_tool_called", "no tool expected")
+        return _na("expected_tool_called", "no tool expected")
     called = [c for c in out.tool_calls if c.get("name") == case.expect_tool]
     if not called:
         names = [c.get("name") for c in out.tool_calls] or ["<none>"]
@@ -101,7 +96,7 @@ def expected_tool_called(case: Case, out: AgentOutput) -> GraderResult:
 def no_tool_when_none_expected(case: Case, out: AgentOutput) -> GraderResult:
     """Guessing an order id and looking it up is worse than asking."""
     if case.expect_tool is not None or not case.must_ask_for:
-        return _ok("no_tool_when_none_expected", "n/a")
+        return _na("no_tool_when_none_expected", "the case expects a tool or asks for nothing")
     if out.tool_calls:
         return _fail(
             "no_tool_when_none_expected",
@@ -111,6 +106,8 @@ def no_tool_when_none_expected(case: Case, out: AgentOutput) -> GraderResult:
 
 
 def contains_required(case: Case, out: AgentOutput) -> GraderResult:
+    if not case.must_contain:
+        return _na("contains_required", "nothing required")
     low = out.reply.lower()
     missing = [s for s in case.must_contain if s.lower() not in low]
     if missing:
@@ -119,6 +116,8 @@ def contains_required(case: Case, out: AgentOutput) -> GraderResult:
 
 
 def excludes_forbidden(case: Case, out: AgentOutput) -> GraderResult:
+    if not case.must_not_contain:
+        return _na("excludes_forbidden", "nothing forbidden")
     low = out.reply.lower()
     present = [s for s in case.must_not_contain if s.lower() in low]
     if present:
@@ -129,20 +128,12 @@ def excludes_forbidden(case: Case, out: AgentOutput) -> GraderResult:
 def asks_for_missing_info(case: Case, out: AgentOutput) -> GraderResult:
     """When information is missing the agent must ask, not invent."""
     if not case.must_ask_for:
-        return _ok("asks_for_missing_info", "n/a")
+        return _na("asks_for_missing_info", "nothing to ask for")
     low = out.reply.lower()
     missing = [term for term in case.must_ask_for if term.lower() not in low]
     if missing:
         return _fail("asks_for_missing_info", f"did not ask for {missing}")
     return _ok("asks_for_missing_info")
-
-
-def completed(case: Case, out: AgentOutput) -> GraderResult:
-    if out.error:
-        return _fail("completed", out.error)
-    if not out.reply.strip():
-        return _fail("completed", "empty reply")
-    return _ok("completed")
 
 
 ALL_GRADERS = (
@@ -161,4 +152,4 @@ ALL_GRADERS = (
 
 
 def grade(case: Case, out: AgentOutput) -> list[GraderResult]:
-    return [g(case, out) for g in ALL_GRADERS]
+    return [g(case, out) for g in ALL_GRADERS]  # type: ignore[misc]

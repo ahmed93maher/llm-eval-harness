@@ -1,0 +1,24 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-08T14:58:14+00:00",
+  "output": {
+    "reply": "Yes — ORD-1044 has shipped with Aramex and is on its way to you. I can't confirm an exact delivery date, but let me know if it doesn't turn up soon.",
+    "tool_calls": [
+      {
+        "name": "lookup_order",
+        "args": {
+          "order_id": "ORD-1044",
+          "account_id": "ACC-77"
+        }
+      }
+    ],
+    "latency_ms": 1350,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": null,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA = ROOT / "data"
 BASELINES = ROOT / "baselines"
 RESULTS = ROOT / "results"
 
@@ -18,16 +17,28 @@ except ImportError:  # pragma: no cover
     pass
 
 # --- models ----------------------------------------------------------------
-# The agent under test runs on Haiku 4.5: it is the cheap, fast tier and this is
-# the model we call hundreds of times per eval run. The judge runs on Opus 5 --
+# The agent under test runs on Haiku 5.5: it is the cheap, fast tier and this is
+# the model we call hundreds of times per eval run. The judge runs on Opus 5.5 --
 # the grader must be at least as capable as the thing it grades, or the scores
 # are noise. Override either with AGENT_MODEL / JUDGE_MODEL.
-AGENT_MODEL = os.getenv("AGENT_MODEL", "claude-haiku-4-5")
-JUDGE_MODEL = os.getenv("JUDGE_MODEL", "claude-opus-5")
+AGENT_MODEL = os.getenv("AGENT_MODEL", "claude-haiku-5-5")
+JUDGE_MODEL = os.getenv("JUDGE_MODEL", "claude-opus-5-5")
 
-# Replies go out over SMS/WhatsApp, so they are deliberately short.
-AGENT_MAX_TOKENS = int(os.getenv("AGENT_MAX_TOKENS", "1024"))
-JUDGE_MAX_TOKENS = int(os.getenv("JUDGE_MAX_TOKENS", "2000"))
+# Effort is set explicitly: both models default to "medium", and a default that
+# changes upstream would silently change what we measure. The judge gets more
+# effort than the agent because a careless grader corrupts every score.
+AGENT_EFFORT = os.getenv("AGENT_EFFORT", "medium")
+JUDGE_EFFORT = os.getenv("JUDGE_EFFORT", "high")
+
+# These models think before they answer, and thinking counts against
+# max_tokens. A tight cap truncates the reply instead of shortening it, so
+# reply length is enforced by the within_length grader, not by this cap.
+AGENT_MAX_TOKENS = int(os.getenv("AGENT_MAX_TOKENS", "16000"))
+JUDGE_MAX_TOKENS = int(os.getenv("JUDGE_MAX_TOKENS", "16000"))
+
+# An agent loop must be bounded: a model that keeps calling tools is a failure
+# to record, not a hang to wait out.
+AGENT_MAX_TURNS = int(os.getenv("AGENT_MAX_TURNS", "6"))
 
 # NOTE: we deliberately never pass `temperature`. Sampling params are rejected
 # (400) on Opus 5 / Sonnet 5 and the 4.6+ family, so omitting them keeps
@@ -52,5 +63,3 @@ BASELINE_TOLERANCE = float(os.getenv("BASELINE_TOLERANCE", "0.02"))
 # what CI uses on every push: the deterministic graders are exercised for free
 # and offline. The judged run is a separate, scheduled job.
 FAKE = os.getenv("EVAL_FAKE", "0") == "1"
-
-MAX_REPLY_CHARS = int(os.getenv("MAX_REPLY_CHARS", "480"))

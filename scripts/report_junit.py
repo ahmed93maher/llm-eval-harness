@@ -24,19 +24,21 @@ from harness import config, reporting  # noqa: E402
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("report", nargs="?", help="path to a report-*.json (default: newest)")
-    ap.add_argument("-o", "--out", default=None, help="output path (default: results/junit.xml)")
-    ap.add_argument("--suite-name", default="llm-eval", help="testsuite name in the XML")
+    ap.add_argument("--agent", default=None, help="newest report of this agent (default: newest of any)")
+    ap.add_argument("-o", "--out", default=None, help="output path (default: results/junit-<agent>.xml)")
+    ap.add_argument("--suite-name", default=None, help="testsuite name in the XML (default: llm-eval-<agent>)")
     args = ap.parse_args()
 
-    path = Path(args.report) if args.report else reporting.newest_report()
+    path = Path(args.report) if args.report else reporting.newest_report(args.agent)
     if path is None:
         print("no results yet -- run scripts/run_eval.py first")
         return 1
 
     report, runs = reporting.load_results(path)
-    xml = reporting.to_junit(report, runs, suite_name=args.suite_name)
+    agent = report.get("agent") or "support"
+    xml = reporting.to_junit(report, runs, suite_name=args.suite_name or f"llm-eval-{agent}")
 
-    out_path = Path(args.out) if args.out else config.RESULTS / "junit.xml"
+    out_path = Path(args.out) if args.out else config.RESULTS / f"junit-{agent}.xml"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(xml, encoding="utf-8")
 

@@ -1,0 +1,16 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-08T14:58:14+00:00",
+  "output": {
+    "reply": "I understand, and I'm sorry it's taken this long. I'm not able to approve refunds myself, but I can raise this with our team who can review it for you. Shall I do that?",
+    "tool_calls": [],
+    "latency_ms": 950,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": null,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

@@ -18,8 +18,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from harness import config  # noqa: E402
-from harness.agent import run_agent  # noqa: E402
+from agents.support import SYSTEM  # noqa: E402
+from agents.support.agent import run_agent  # noqa: E402
+from harness import config, dataset, fixtures  # noqa: E402
+from harness.schema import AgentOutput  # noqa: E402
+
+# Offline, a message from the dataset replays its case's first recording; any
+# other message gets an obvious placeholder. Enough to load-test the plumbing.
+CASE_BY_MESSAGE = {c.message: c.id for c in dataset.load_cases(SYSTEM)}
+
+
+def reply(message: str, account_id: str) -> AgentOutput:
+    if not config.FAKE:
+        return run_agent(message, account_id)
+    case_id = CASE_BY_MESSAGE.get(message)
+    if case_id is None:
+        return AgentOutput(reply="(no fixture recorded for this message)")
+    return fixtures.load(SYSTEM.fixtures_dir, case_id, 0)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -45,7 +60,7 @@ class Handler(BaseHTTPRequestHandler):
         if not message:
             return self._send(400, {"error": "message is required"})
 
-        out = run_agent(message, account_id)
+        out = reply(message, account_id)
         if out.error:
             # Surface upstream rate limiting as 429 so k6 can measure it properly
             # instead of burying it in a generic 500.

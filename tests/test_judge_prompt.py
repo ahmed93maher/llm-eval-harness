@@ -7,8 +7,9 @@ tools were called, not what they returned.
 """
 from __future__ import annotations
 
-from harness.graders.judge import _format_context, _prompt
-from harness.schema import AgentOutput, Case
+from agents.support.cases import SupportCase as Case
+from harness.judge import _format_context, _prompt
+from harness.schema import AgentOutput
 
 CASE = Case(
     id="order_status",

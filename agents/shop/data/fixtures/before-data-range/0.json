@@ -1,0 +1,27 @@
+{
+  "source": "hand-authored",
+  "agent_model": null,
+  "saved_at": "2026-11-08T16:15:49+00:00",
+  "output": {
+    "reply": "I can't answer that: our sales data starts on 1 September 2026, so there is nothing recorded for 20 August.",
+    "tool_calls": [
+      {
+        "name": "get_sales",
+        "args": {
+          "store_id": "all",
+          "start_date": "2026-08-20",
+          "end_date": "2026-08-20"
+        },
+        "result": "No data outside 2026-09-01 to 2026-10-14.",
+        "is_error": true
+      }
+    ],
+    "latency_ms": 0,
+    "refused": false,
+    "error": null,
+    "turns": 0,
+    "stop_reason": "end_turn",
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+}

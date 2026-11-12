@@ -1,9 +1,10 @@
 """The subjective half: an LLM judge scoring against a written rubric.
 
-Everything a regex can decide is decided in deterministic.py. What is left --
+Everything a regex can decide is decided by the agent's own graders. What is left --
 was this helpful, is it grounded in the context it was given, is the tone right --
 needs judgement. We make that judgement comparable across runs by writing the
-rubric down and returning numbers, not prose.
+rubric down and returning numbers, not prose. The mechanism is shared; each
+agent supplies its own rubric (agents/<name>/rubric.py).
 
 The judge is an instrument. scripts/judge_agreement.py measures it against
 hand-labelled examples; until you have run that, treat these scores as unvalidated.
@@ -14,34 +15,6 @@ import json
 
 from harness import config
 from harness.schema import AgentOutput, Case, JudgeVerdict
-
-RUBRIC = """You are grading a customer-support agent's reply. Score three \
-dimensions from 1 to 5. Be strict: 4 means "I would send this to a customer", \
-5 means "I could not improve it".
-
-HELPFULNESS
-5 - fully resolves the request, or asks precisely the one question needed to proceed
-4 - addresses the request, minor omission
-3 - partially addresses it, or is vague
-2 - deflects without helping
-1 - ignores what was asked
-
-FAITHFULNESS (the most important dimension)
-5 - every factual claim is supported by the tool results / context shown below
-4 - grounded, with one harmlessly imprecise statement
-3 - a claim that is probably true but is not in the context
-2 - states an order fact that does not appear in the context
-1 - invents a status, date, amount, or policy
-
-TONE
-5 - natural, courteous, correct register for a text message in the customer's language
-4 - fine, slightly stiff or slightly long
-3 - noticeably robotic, or over-familiar
-2 - curt, or dismissive of a frustrated customer
-1 - rude, or blames the customer
-
-Judge only what is in front of you. Do not reward a reply for sounding confident."""
-
 
 def _format_context(out: AgentOutput) -> str:
     """Every tool call the agent made, and what it got back.
@@ -63,7 +36,7 @@ def _format_context(out: AgentOutput) -> str:
 def _prompt(case: Case, out: AgentOutput) -> str:
     extra = f"\n\nCase-specific expectation:\n{case.rubric}" if case.rubric else ""
     return (
-        f"CUSTOMER MESSAGE ({case.lang}):\n{case.message}\n\n"
+        f"USER MESSAGE ({case.lang}):\n{case.message}\n\n"
         f"CONTEXT THE AGENT RECEIVED (tool calls and what they returned):\n"
         f"{_format_context(out)}\n\n"
         f"AGENT REPLY:\n{out.reply}\n\n"
@@ -73,8 +46,9 @@ def _prompt(case: Case, out: AgentOutput) -> str:
     )
 
 
-def judge(case: Case, out: AgentOutput) -> JudgeVerdict | None:
-    """Score one reply. Returns None when the reply never happened."""
+def judge(rubric: str, case: Case, out: AgentOutput) -> JudgeVerdict | None:
+    """Score one reply against an agent's rubric. Returns None when the reply
+    never happened, or when the judge did not produce a verdict."""
     if out.error or not out.reply.strip():
         return None
     if config.FAKE:
@@ -85,11 +59,17 @@ def judge(case: Case, out: AgentOutput) -> JudgeVerdict | None:
     import anthropic
 
     client = anthropic.Anthropic()
+    # No refusal fallback to another model, deliberately: the judge is a
+    # calibrated instrument, and silently swapping the model that scores a run
+    # would make its scores incomparable with the ones agreement was measured on.
     response = client.messages.parse(
         model=config.JUDGE_MODEL,
         max_tokens=config.JUDGE_MAX_TOKENS,
-        system=RUBRIC,
+        system=rubric,
         messages=[{"role": "user", "content": _prompt(case, out)}],
         output_format=JudgeVerdict,
+        output_config={"effort": config.JUDGE_EFFORT},
     )
+    if response.stop_reason in ("refusal", "max_tokens"):
+        return None  # reported as unjudged, never as a score
     return response.parsed_output

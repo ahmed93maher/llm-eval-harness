@@ -4,10 +4,19 @@
 
 **A test harness for a system that answers differently every time you ask it.**
 
-The system under test is a small customer-support agent: it replies over a
-messaging channel and can call one tool. The agent is deliberately simple. The
-point of this repo is the harness around it — *how do you write a reliable test
-when `assert reply == expected` isn't available?*
+Two small agents are under test, chosen because they fail in different ways:
+
+- **`support`**, a customer-support agent replying over SMS and WhatsApp with one
+  tool. It mostly has to *behave*: stay in the customer's language, refuse,
+  not leak, not obey instructions planted in its data.
+- **`shop`**, a sales assistant answering a store manager's questions over seeded
+  sales data with three tools. It mostly has to be *right*: its answers are
+  figures, and every figure has a ground truth.
+
+The agents are deliberately simple. The point of this repo is the harness around
+them — *how do you write a reliable test when `assert reply == expected` isn't
+available?* The harness core knows neither agent; each describes itself once
+(see [Project structure](#project-structure)).
 
 The answer here is three things: **invariants** that must always hold, a
 **rubric-scored judge** for what's left, and **pass rates** instead of pass/fail.
@@ -22,19 +31,23 @@ No API key needed — this runs against recorded fixtures:
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                              # 53 unit tests, ~0.5s
-EVAL_FAKE=1 python scripts/run_eval.py --no-judge      # the suite, offline
+pytest -q                                              # 122 unit tests, ~1s
+EVAL_FAKE=1 python scripts/run_eval.py --no-judge      # the support suite, offline
+EVAL_FAKE=1 python scripts/run_eval.py --agent shop --no-judge
 python scripts/report_html.py --open                   # the report above
 ```
 
-To see it catch a bug, edit any `"reply"` in `data/fixtures.json` — answer an
-Arabic case in English, or add the words "refund approved" — and run it again.
-`git checkout data/fixtures.json` puts it back.
+To see it catch a bug, edit the `"reply"` in any `agents/support/data/fixtures/<case>/0.json`:
+answer an Arabic case in English, or add the words "refund approved", and run it
+again. `git checkout agents/support/data/fixtures` puts it back.
+
+The shipped fixtures are hand-authored test doubles, and the report says so: they
+show the graders work, not how the model behaves.
 
 With an `ANTHROPIC_API_KEY` in `.env`:
 
 ```bash
-python scripts/record_fixtures.py     # replace fixtures with real model output
+python scripts/record_fixtures.py --agent shop --reps 3   # record real runs, one file per repetition
 python scripts/run_eval.py            # full judged run, gated against the baseline
 python scripts/run_eval.py --tag arabic --reps 5
 ```
@@ -83,6 +96,15 @@ Every case runs N times. A case that passes 2 of 3 is **flaky** — the most
 informative state here, because it means the failure is real but intermittent,
 which is exactly what one green run hides.
 
+Pass rates are also kept **per grader**, counting only the runs a grader applied
+to. A grader with nothing to check on a case (no tool expected, nothing to ask
+for) reports *not applicable* rather than a pass, so `asks_for_missing_info`
+at 1/1 reads as "tested once", not as 15/15 reliability it never earned.
+
+Offline, repetition *n* replays recording *n*, so the variance the live model
+showed survives into the offline numbers. Asking for more repetitions than were
+recorded stops the run: graded, the gaps would look exactly like a flaky agent.
+
 ### 4. The judge is itself validated
 
 `scripts/judge_agreement.py` scores the judge against hand-labelled examples and
@@ -92,7 +114,7 @@ rubric before trusting any suite number.
 
 ### 5. Baselines, so regressions are visible
 
-`baselines/baseline.json` holds per-case pass rates from a known-good run. New
+`baselines/<agent>.json` holds per-case pass rates from a known-good run. New
 runs diff against it and fail when quality drops beyond tolerance. Prompt edits,
 model swaps and dependency bumps all land here — drift detection with the honest
 name on it.
@@ -101,7 +123,7 @@ name on it.
 
 ## The dataset
 
-15 cases in `data/cases.yaml`, validated *before* any API call is spent: unique
+15 cases in `agents/support/data/cases.yaml`, validated *before* any API call is spent: unique
 IDs, no untagged cases, Arabic coverage ≥ 25%, and — the rule worth stealing —
 **every case must be falsifiable.** A case with no expectation attached passes
 forever and measures nothing, so the loader rejects it.
@@ -148,9 +170,61 @@ artifact.
 
 ---
 
+## The shop agent
+
+10 cases in `agents/shop/data/cases.yaml`, over a fictional three-store shop
+whose sales are generated from a fixed seed: every run, machine and test sees
+the same figures, so a grader can say "this number is wrong". "Today" is pinned
+to 15 October 2026 for the same reason, so "yesterday" always means one date.
+
+The cases cover figures for one store and for all of them, a ranking, a
+comparison, a relative period ("last week", which is ambiguous on purpose), a
+question with no period (must ask first, with no tool call), a date before the
+data starts (must say so and state no figure), an off-topic question, and the
+same questions in Arabic. The tools return errors as data, so how the agent
+handles a refused date range is part of what gets measured.
+
+Its graders check the path (the expected tools were called, none were called
+when the right move is to ask, no money figure when the data cannot answer) and
+the figures.
+
+### The figure check
+
+`harness/figures.py` pulls every figure out of an answer (`$2,195.00`, `2.2k`,
+`62%`, Arabic digits such as `١٬٠٠٠٫٢٥`, skipping dates and list markers) and
+requires each one to trace back to what the agent was told: a value in its tool
+results, a count, a total, or plain arithmetic on the headline values (a sum, a
+difference, an average, a share, a change). A figure that traces to nothing was
+invented or miscalculated, and the failure names it.
+
+Two things make it trustworthy rather than merely plausible:
+
+- **Tolerance follows stated precision.** `$41.9k` claims less than
+  `$41,891.00`, so it may be off by more. How far rounding may go is a stated
+  policy: at least two significant figures, and small counts exact.
+- **Coincidence is designed out.** Compare a number against hundreds of derived
+  sums with a wide tolerance and something always matches. So a percentage is
+  only compared with computed percentages (55% is not the 55 orders some day
+  had), a rounded figure only with raw values, and an average only with a
+  figure written with decimals.
+
+**Proven with planted faults, not live runs.** This repo never calls the model
+for its tests. `tests/test_figures.py` holds correct answers in the forms a
+model writes, which must pass, and answers with a deliberately planted fault
+(off by a cent, transposed digits, a wrong Arabic digit, a sum done wrong, a
+share that is really a count), which must fail. Several of those traps passed
+the first version of the check by coincidence; they are the reason for the
+rules above.
+
+What it cannot do: **grounded is not correct.** "46 orders" grounds if 46 is
+anywhere in the results, even for the wrong day. The right arguments are the
+path graders' job, and whether the figure answers the question is the judge's.
+
+---
+
 ## CI
 
-`.github/workflows/ci.yml` runs two jobs on purpose:
+`.github/workflows/ci.yml` runs two jobs on purpose, each over both agents:
 
 - **every push** — dataset validation, unit tests, and the suite against recorded
   fixtures. No key, no cost, seconds.
@@ -180,24 +254,40 @@ replies. Thresholds are the gate — k6 exits non-zero on breach.
 
 ## Project structure
 
+The harness core knows nothing about any one agent. An agent describes itself
+once, as a `SystemUnderTest` (`harness/system.py`): how to run a case, its
+graders, its judge rubric, and what makes one of its cases falsifiable. Every
+script takes `--agent` (default `support`).
+
 ```
-harness/
-  agent.py              the system under test: prompt, tool, agent loop
-  graders/
-    deterministic.py    11 invariant assertions, pure functions
-    judge.py            the rubric and the LLM judge
-  runner.py             run each case N times, aggregate pass rates
-  dataset.py            load and validate cases.yaml
-  baseline.py           regression gating
+harness/                core, agent-agnostic (a test fails if it imports an agent)
+  system.py             SystemUnderTest: the one contract between core and agent
+  runner.py             run each case N times, aggregate pass rates per case and per grader
+  fixtures.py           save and replay recorded runs
+  dataset.py            load cases, generic validation
+  graders.py            graders any agent can use: completed, language_matches
+  judge.py              the LLM judge; the rubric comes from the agent
+  agreement.py          judge-vs-human agreement
+  baseline.py           regression gating, one baseline per agent
   reporting.py          HTML / JUnit / Markdown renderers
   schema.py             typed contracts (Pydantic)
   config.py             every tunable, env-overridable
-data/
-  cases.yaml            the 15 scenarios
-  orders.json           seeded test database (incl. the poisoned note)
-  fixtures.json         recorded replies for offline runs
-scripts/                six entry points, thin CLIs
-tests/                  53 tests, no API, no network
+agents/
+  support/              the customer-support agent
+    agent.py            prompt, tool, agent loop
+    graders.py          its 11 invariants (two shared from harness/graders.py)
+    rubric.py           what the judge scores it against
+    cases.py            its case fields and dataset rules
+    data/
+      cases.yaml        the 15 scenarios
+      orders.json       seeded test database (incl. the poisoned note)
+      fixtures/<case>/<n>.json  one recorded run per repetition, for offline replay
+  shop/                 the sales assistant, same layout
+    backoffice.py       seeded sales data: the ground truth
+    tools.py            list_stores, get_sales, get_top_products
+    data/cases.yaml     the 10 scenarios
+scripts/                entry points, thin CLIs
+tests/                  122 tests, no API, no network
 loadtest/agent_load.js  k6 scenario
 ```
 
@@ -207,11 +297,11 @@ loadtest/agent_load.js  k6 scenario
 
 | Role | Default | Why |
 |---|---|---|
-| Agent under test | `claude-haiku-4-5` | Cheap and fast; called hundreds of times per run |
-| Judge | `claude-opus-5` | The grader must be at least as capable as what it grades |
+| Agent under test | `claude-haiku-5-5` | Cheap and fast; called hundreds of times per run |
+| Judge | `claude-opus-5-5` | The grader must be at least as capable as what it grades |
 
-Overridable via `AGENT_MODEL` / `JUDGE_MODEL`. A full 15-case × 3-rep judged run
-costs roughly $2.
+Overridable via `AGENT_MODEL` / `JUDGE_MODEL`. A full 15-case × 3-rep judged run used to
+cost roughly $2 on the previous models (Haiku 4.5, Opus 5); not yet re-measured on the current ones.
 
 ---
 
@@ -233,8 +323,11 @@ costs roughly $2.
 
 ## Roadmap
 
-- Replace the hand-authored `data/fixtures.json` with real recordings
-  (`scripts/record_fixtures.py`) so offline runs grade genuine model output.
+- Shop: path graders for arguments (the right store and date range, "last week"
+  resolved to a stated range) and for wasted or repeated calls.
+- Replace the hand-authored fixtures with real recordings
+  (`scripts/record_fixtures.py --reps 3`) so offline runs grade genuine model
+  output, with its run-to-run variance.
 - Commit a baseline from the first judged run, so regressions have a reference.
 - Measure judge agreement against hand labels and publish the number — until
   then, judge scores are unvalidated, which is exactly what that check is for.
