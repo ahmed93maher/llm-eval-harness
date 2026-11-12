@@ -31,7 +31,7 @@ No API key needed — this runs against recorded fixtures:
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                              # 158 unit tests, ~2s
+pytest -q                                              # 211 unit tests, ~2s
 EVAL_FAKE=1 python scripts/run_eval.py --no-judge      # the support suite, offline
 EVAL_FAKE=1 python scripts/run_eval.py --agent shop --no-judge
 python scripts/report_html.py --open                   # the report above
@@ -166,14 +166,32 @@ Coverage is deliberately adversarial:
 
 ## Reports
 
-Every run writes `results/report-<stamp>.json` and `results/runs-<stamp>.json`.
-Three renderers turn those into something readable:
+Every run writes `results/report-<stamp>-<agent>.json` and
+`results/runs-<stamp>-<agent>.json`. Four renderers turn those into something
+readable:
 
 ```bash
-python scripts/report_html.py --open   # self-contained HTML, for a human
-python scripts/report_junit.py         # JUnit XML for Xray / Jenkins / GitHub
-python scripts/report_summary.py       # Markdown; --github writes the CI run page
+python scripts/assessment.py --agent shop   # the assessment: for someone who has to act on it
+python scripts/report_html.py --open        # self-contained HTML, for a human triaging cases
+python scripts/report_junit.py              # JUnit XML for Xray / Jenkins / GitHub
+python scripts/report_summary.py            # Markdown; --github writes the CI run page
 ```
+
+**Assessment** — written for a reader who did not run the eval. It leads with
+the answer (how many runs passed every check, which checks fail most), then
+says **what the run does not show** before any number can be over-read: outputs
+replayed rather than live, no judge, too few repetitions to call a rare failure,
+checks applied to too few runs to mean much. Then results by check, by category
+and by case, every failure with its evidence (the question, the answer, and the
+check's own words), and cost and latency per task. Cost needs the model's price
+(`AGENT_PRICE_PER_MTOK=in,out`) and is left out rather than guessed.
+
+See [an example](docs/example-assessment-shop.md), made offline from the shop's
+recordings: repetition 0 of every case is a correct answer, and repetitions 1
+and 2 plant realistic faults (a transposed figure, an invented figure, a store
+never looked at, a guessed period, "last week" left undefined, English for an
+Arabic question). A test holds the shipped recordings to their labels: every
+correct one passes every check, and every planted fault is caught.
 
 **HTML** — failures first and expanded by default, every reply with its grader
 verdicts and judge scores. Arabic renders right-to-left (`dir="auto"`), which
@@ -321,6 +339,7 @@ harness/                core, agent-agnostic (a test fails if it imports an agen
   path.py               path checks: required calls with alternatives, repeats, stated dates
   judge.py              the LLM judge; the rubric comes from the agent
   agreement.py          judge-vs-human agreement, kappa, and the bar to trust a judge
+  assessment.py         the assessment report: answer first, caveats, evidence, cost
   baseline.py           regression gating, one baseline per agent
   reporting.py          HTML / JUnit / Markdown renderers
   schema.py             typed contracts (Pydantic)
@@ -340,7 +359,7 @@ agents/
     tools.py            list_stores, get_sales, get_top_products
     data/cases.yaml     the 10 scenarios
 scripts/                entry points, thin CLIs
-tests/                  158 tests, no API, no network
+tests/                  211 tests, no API, no network
 loadtest/agent_load.js  k6 scenario
 ```
 

@@ -21,6 +21,7 @@ def _fail(name: str, detail: str) -> GraderResult:
 
 
 def completed(case: Case, out: AgentOutput) -> GraderResult:
+    """The run finished with an answer: no error, not refused, not cut off."""
     if out.error:
         return _fail("completed", out.error)
     if out.stop_reason == "max_tokens":

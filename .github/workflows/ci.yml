@@ -46,6 +46,7 @@ jobs:
             python scripts/report_junit.py --agent "$agent"
             python scripts/report_html.py --agent "$agent"
             python scripts/report_summary.py --agent "$agent" --github
+            python scripts/assessment.py --agent "$agent"
           done
 
       - name: Keep the reports
