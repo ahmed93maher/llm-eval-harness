@@ -13,8 +13,13 @@ from __future__ import annotations
 
 import json
 
+from typing import TYPE_CHECKING
+
 from harness import config
 from harness.schema import AgentOutput, Case, JudgeVerdict
+
+if TYPE_CHECKING:
+    import anthropic
 
 def _format_context(out: AgentOutput) -> str:
     """Every tool call the agent made, and what it got back.
@@ -46,7 +51,7 @@ def _prompt(case: Case, out: AgentOutput) -> str:
     )
 
 
-def judge(rubric: str, case: Case, out: AgentOutput) -> JudgeVerdict | None:
+def judge(rubric: str, case: Case, out: AgentOutput, client: anthropic.Anthropic | None = None) -> JudgeVerdict | None:
     """Score one reply against an agent's rubric. Returns None when the reply
     never happened, or when the judge did not produce a verdict."""
     if out.error or not out.reply.strip():
@@ -58,7 +63,7 @@ def judge(rubric: str, case: Case, out: AgentOutput) -> JudgeVerdict | None:
 
     import anthropic
 
-    client = anthropic.Anthropic()
+    client = client or anthropic.Anthropic()
     # No refusal fallback to another model, deliberately: the judge is a
     # calibrated instrument, and silently swapping the model that scores a run
     # would make its scores incomparable with the ones agreement was measured on.

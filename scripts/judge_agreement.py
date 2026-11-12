@@ -12,12 +12,14 @@ Workflow:
   3. label them yourself: pass / fail, no peeking at the judge's score
   4. python scripts/judge_agreement.py             -> agreement %, disagreements
 
-Below ~85% agreement, fix the rubric before trusting any suite pass rate.
+The judge is trusted only with agreement >= 85%, Cohen's kappa >= 0.6, and no
+lenient disagreements (see harness/agreement.py for why each).
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -52,6 +54,9 @@ def measure(system: SystemUnderTest) -> int:
         print(f"no labels at {labels} -- run with --init first")
         return 1
     rows = yaml.safe_load(labels.read_text(encoding="utf-8")) or []
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        print("no ANTHROPIC_API_KEY set: measuring agreement runs the judge, which needs a key")
+        return 1
     cases = {c.id: c for c in dataset.load_cases(system)}
 
     def judge(case, out):
@@ -67,15 +72,21 @@ def measure(system: SystemUnderTest) -> int:
         print("no rows labelled yet")
         return 1
 
-    print(f"\njudge agreement: {result.agreed}/{result.total} = {result.rate:.0%}  (judge={config.JUDGE_MODEL})")
+    kappa = "undefined" if result.kappa is None else f"{result.kappa:.2f}"
+    print(f"\njudge agreement: {result.agreed}/{result.total} = {result.rate:.0%}, kappa {kappa}  (judge={config.JUDGE_MODEL})")
+    print(f"disagreements: {result.lenient} lenient (judge passed, human failed), {result.strict} strict")
+    if result.unjudged:
+        print(f"{len(result.unjudged)} rows got no verdict (refusal or truncation): {', '.join(result.unjudged)}")
     if result.disagreements:
         print("\ndisagreements -- read these before touching the suite:")
         for case_id, human, jv, why in result.disagreements:
             print(f"  {case_id}: human={human} judge={jv}")
             print(f"    judge said: {why}")
-    if result.rate < 0.85:
-        print("\nAgreement is too low to trust the suite. Sharpen the rubric.")
+    ok, reasons = agreement.trusted(result)
+    if not ok:
+        print("\nThe judge is not trusted yet: " + "; ".join(reasons) + ". Sharpen the rubric.")
         return 1
+    print("\nThe judge clears the bar.")
     return 0
 
 

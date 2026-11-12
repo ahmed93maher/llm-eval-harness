@@ -31,7 +31,7 @@ No API key needed — this runs against recorded fixtures:
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                              # 145 unit tests, ~2s
+pytest -q                                              # 158 unit tests, ~2s
 EVAL_FAKE=1 python scripts/run_eval.py --no-judge      # the support suite, offline
 EVAL_FAKE=1 python scripts/run_eval.py --agent shop --no-judge
 python scripts/report_html.py --open                   # the report above
@@ -107,10 +107,31 @@ recorded stops the run: graded, the gaps would look exactly like a flaky agent.
 
 ### 4. The judge is itself validated
 
-`scripts/judge_agreement.py` scores the judge against hand-labelled examples and
-reports agreement. An LLM judge is a measuring instrument; an uncalibrated
-instrument produces confident readings that mean nothing. Below ~85%, fix the
-rubric before trusting any suite number.
+`scripts/judge_agreement.py --agent <name>` scores the judge against
+hand-labelled examples. An LLM judge is a measuring instrument; an uncalibrated
+instrument produces confident readings that mean nothing.
+
+Raw agreement is not enough, because it flatters a lazy judge. In a typical
+labelled set most answers are good: with 9 passes and 1 fail, a judge that
+passes *everything* agrees 90% of the time while measuring nothing, and waves
+through the one answer that mattered. So the judge is trusted only when all
+three hold (`harness/agreement.py`):
+
+- **agreement ≥ 85%**;
+- **Cohen's kappa ≥ 0.6**: agreement beyond what chance would give. The
+  pass-everything judge above scores 0.0;
+- **no lenient disagreements**: a judge that passes an answer a human failed
+  hides real failures. A strict one (fails an answer a human passed) is noisy
+  but hides nothing, so it is tolerated.
+
+The tests prove each rule with fake judges, including the 90%-and-useless one.
+
+**This repo does not run the judge.** It never calls a model in its tests or
+CI, so it shows the method rather than a measured number: the rubric per agent,
+what the judge is shown (tool calls *and* their results), how a missing verdict
+is reported, and the bar above. Measuring real agreement takes real outputs and
+about 30 hand labels; run `scripts/judge_agreement.py` with your own key to do
+it.
 
 ### 5. Baselines, so regressions are visible
 
@@ -299,7 +320,7 @@ harness/                core, agent-agnostic (a test fails if it imports an agen
   figures.py            the figure check: every number traces back to the data
   path.py               path checks: required calls with alternatives, repeats, stated dates
   judge.py              the LLM judge; the rubric comes from the agent
-  agreement.py          judge-vs-human agreement
+  agreement.py          judge-vs-human agreement, kappa, and the bar to trust a judge
   baseline.py           regression gating, one baseline per agent
   reporting.py          HTML / JUnit / Markdown renderers
   schema.py             typed contracts (Pydantic)
@@ -319,7 +340,7 @@ agents/
     tools.py            list_stores, get_sales, get_top_products
     data/cases.yaml     the 10 scenarios
 scripts/                entry points, thin CLIs
-tests/                  145 tests, no API, no network
+tests/                  158 tests, no API, no network
 loadtest/agent_load.js  k6 scenario
 ```
 
@@ -359,6 +380,4 @@ cost roughly $2 on the previous models (Haiku 4.5, Opus 5); not yet re-measured 
   (`scripts/record_fixtures.py --reps 3`) so offline runs grade genuine model
   output, with its run-to-run variance.
 - Commit a baseline from the first judged run, so regressions have a reference.
-- Measure judge agreement against hand labels and publish the number — until
-  then, judge scores are unvalidated, which is exactly what that check is for.
 - Parallelise the runner behind a concurrency cap.
