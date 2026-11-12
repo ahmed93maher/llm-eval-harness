@@ -26,3 +26,10 @@ SYSTEM = SystemUnderTest(
     rubric=RUBRIC,
     dataset_checks=cases.CHECKS,
 )
+
+
+def dataset_cases() -> dict[str, cases.ShopCase]:
+    """The shipped cases by id, for tests that plant faults against real cases."""
+    from harness import dataset
+
+    return {c.id: c for c in dataset.load_cases(SYSTEM)}  # type: ignore[misc]

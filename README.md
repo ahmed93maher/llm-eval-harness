@@ -31,7 +31,7 @@ No API key needed — this runs against recorded fixtures:
 
 ```bash
 pip install -r requirements.txt
-pytest -q                                              # 122 unit tests, ~1s
+pytest -q                                              # 145 unit tests, ~2s
 EVAL_FAKE=1 python scripts/run_eval.py --no-judge      # the support suite, offline
 EVAL_FAKE=1 python scripts/run_eval.py --agent shop --no-judge
 python scripts/report_html.py --open                   # the report above
@@ -184,9 +184,32 @@ data starts (must say so and state no figure), an off-topic question, and the
 same questions in Arabic. The tools return errors as data, so how the agent
 handles a refused date range is part of what gets measured.
 
-Its graders check the path (the expected tools were called, none were called
-when the right move is to ask, no money figure when the data cannot answer) and
-the figures.
+Its graders check the path and the figures.
+
+### Path checks
+
+The figure check below proves a number came from the data, not that it came
+from the right slice of it: "46 orders" grounds just as well against the wrong
+day. So the path gets its own checks (`harness/path.py`):
+
+- **`right_calls`** — the calls made cover the calls the right answer needs, with
+  the arguments that matter (store, dates). Most questions have more than one
+  valid path, so a case states them as a small tree: "last week" is
+  `any_of` Monday-to-Sunday or the last seven days; "revenue yesterday" is
+  `any_of` one call for all stores, or `all_of` one call per store. A failed
+  call never counts.
+- **`no_repeated_calls`** — the same call twice is wasted work, and after an
+  error it is a retry loop.
+- **`states_period`** — when the question names a relative period, the answer
+  must name the dates it used, and they must be the dates of a call it made.
+  Choosing either reading of "last week" is fine; not saying which is not.
+
+Planted faults in `tests/test_path.py` each produce an answer whose figures are
+real, so the figure check passes them: the wrong store, today instead of
+yesterday, September cut short at the 29th, a store missing from a comparison.
+The tests were then checked against deliberately broken graders (an argument
+matcher that ignores arguments, failed calls counted, `any_of` read as
+`all_of`) to confirm each break fails at least one test.
 
 ### The figure check
 
@@ -273,6 +296,8 @@ harness/                core, agent-agnostic (a test fails if it imports an agen
   fixtures.py           save and replay recorded runs
   dataset.py            load cases, generic validation
   graders.py            graders any agent can use: completed, language_matches
+  figures.py            the figure check: every number traces back to the data
+  path.py               path checks: required calls with alternatives, repeats, stated dates
   judge.py              the LLM judge; the rubric comes from the agent
   agreement.py          judge-vs-human agreement
   baseline.py           regression gating, one baseline per agent
@@ -294,7 +319,7 @@ agents/
     tools.py            list_stores, get_sales, get_top_products
     data/cases.yaml     the 10 scenarios
 scripts/                entry points, thin CLIs
-tests/                  122 tests, no API, no network
+tests/                  145 tests, no API, no network
 loadtest/agent_load.js  k6 scenario
 ```
 
@@ -330,8 +355,6 @@ cost roughly $2 on the previous models (Haiku 4.5, Opus 5); not yet re-measured 
 
 ## Roadmap
 
-- Shop: path graders for arguments (the right store and date range, "last week"
-  resolved to a stated range) and for wasted or repeated calls.
 - Replace the hand-authored fixtures with real recordings
   (`scripts/record_fixtures.py --reps 3`) so offline runs grade genuine model
   output, with its run-to-run variance.

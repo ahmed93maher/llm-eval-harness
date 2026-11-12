@@ -1,16 +1,17 @@
-"""The shop agent's graders: did it use the tools it should, does every
-figure it states trace back to the data, and did it keep quiet about figures
-the data cannot give?
+"""The shop agent's graders: did it ask its tools for the right thing, does
+every figure it states trace back to the data, and did it keep quiet about
+figures the data cannot give?
 
 Each is (case, out) -> GraderResult.
 """
 from __future__ import annotations
 
 import re
+from datetime import date
 
 from agents.shop import backoffice
 from agents.shop.cases import ShopCase as Case
-from harness import figures
+from harness import figures, path
 from harness.graders import completed, language_matches
 from harness.schema import AgentOutput, GraderResult
 
@@ -70,6 +71,47 @@ def figures_grounded(case: Case, out: AgentOutput) -> GraderResult:
     return GraderResult(name=name, passed=True, detail=f"{len(stated)} figures grounded")
 
 
+def right_calls(case: Case, out: AgentOutput) -> GraderResult:
+    """The calls made cover the calls the right answer needs: the right store,
+    the right dates. Failed calls do not count."""
+    name = "right_calls"
+    if not case.expect_calls:
+        return GraderResult(name=name, passed=True, applicable=False, detail="no calls specified")
+    if path.satisfied(case.expect_calls, out.tool_calls):
+        return GraderResult(name=name, passed=True)
+    made = [f"{c.get('name')}({c.get('args')})" + (" [error]" if c.get("is_error") else "") for c in out.tool_calls]
+    return GraderResult(name=name, passed=False, detail=f"needed {path.describe(case.expect_calls)}; made {made or 'none'}")
+
+
+def no_repeated_calls(case: Case, out: AgentOutput) -> GraderResult:
+    """The same call twice is wasted work; after an error, it is a retry loop."""
+    name = "no_repeated_calls"
+    if not out.tool_calls:
+        return GraderResult(name=name, passed=True, applicable=False, detail="no calls")
+    dupes = path.repeated(out.tool_calls)
+    if dupes:
+        return GraderResult(name=name, passed=False, detail=f"repeated: {dupes}")
+    return GraderResult(name=name, passed=True)
+
+
+def states_period(case: Case, out: AgentOutput) -> GraderResult:
+    """A relative period ("last week") is ambiguous; the answer must name the
+    dates it used, and they must be the dates of a call it actually made."""
+    name = "states_period"
+    if not case.must_state_period:
+        return GraderResult(name=name, passed=True, applicable=False, detail="no relative period")
+    named = path.mentioned_dates(out.reply, backoffice.TODAY.year)
+    for c in out.tool_calls:
+        args = c.get("args", {})
+        if c.get("is_error") or "start_date" not in args:
+            continue
+        start, end = date.fromisoformat(args["start_date"]), date.fromisoformat(args["end_date"])
+        if start in named and end in named:
+            return GraderResult(name=name, passed=True, detail=f"{start} to {end}")
+    said = sorted(d.isoformat() for d in named)
+    return GraderResult(name=name, passed=False, detail=f"answer names {said or 'no dates'}, not the range it queried")
+
+
 ALL_GRADERS = (
     completed,
     language_matches,
@@ -77,4 +119,7 @@ ALL_GRADERS = (
     no_tools_when_none_expected,
     no_figures_stated,
     figures_grounded,
+    right_calls,
+    no_repeated_calls,
+    states_period,
 )

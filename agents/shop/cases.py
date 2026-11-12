@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import pandas as pd
+from typing import Any
+
 from pydantic import ConfigDict, Field
 
 from agents.shop import tools
+from harness import path
 from harness.schema import Case
 
 
@@ -18,6 +21,13 @@ class ShopCase(Case):
     # The right behaviour is to answer without any tool call (ask for the
     # missing period, decline an out-of-scope question).
     expect_no_tools: bool = False
+    # The calls the right answer needs, with the arguments that matter: a
+    # requirement tree with any_of / all_of for questions with several valid
+    # paths (see harness/path.py).
+    expect_calls: list[dict[str, Any]] = Field(default_factory=list)
+    # The question names a relative period ("last week"): the answer must say
+    # which dates it took that to mean, matching a call it actually made.
+    must_state_period: bool = False
     # The data cannot answer the question, so the answer must contain no
     # money figure at all: any figure would be invented.
     must_not_state_figures: bool = False
@@ -28,7 +38,14 @@ def falsifiable(df: pd.DataFrame) -> list[str]:
     """Every case needs at least one expectation, or it always passes and proves nothing."""
 
     def has_expectation(row) -> bool:
-        return bool(row["expect_tools"] or row["expect_no_tools"] or row["must_not_state_figures"] or row["rubric"])
+        return bool(
+            row["expect_tools"]
+            or row["expect_calls"]
+            or row["expect_no_tools"]
+            or row["must_not_state_figures"]
+            or row["must_state_period"]
+            or row["rubric"]
+        )
 
     toothless = df.loc[~df.apply(has_expectation, axis=1), "id"].tolist()
     return [f"cases with no expectation (always pass, prove nothing): {toothless}"] if toothless else []
@@ -38,10 +55,10 @@ def consistent_tool_expectations(df: pd.DataFrame) -> list[str]:
     known = {t["name"] for t in tools.TOOLS}
     problems = []
     for _, row in df.iterrows():
-        unknown = set(row["expect_tools"]) - known
+        unknown = (set(row["expect_tools"]) | path.tools_named(row["expect_calls"])) - known
         if unknown:
             problems.append(f"{row['id']}: expects unknown tools {sorted(unknown)}")
-        if row["expect_tools"] and row["expect_no_tools"]:
+        if (row["expect_tools"] or row["expect_calls"]) and row["expect_no_tools"]:
             problems.append(f"{row['id']}: expects tools and no tools at once")
     return problems
 

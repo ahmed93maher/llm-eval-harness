@@ -8,28 +8,47 @@
   lang: en
   tags: [figures, single-day, all-stores]
   expect_tools: [get_sales]
+  expect_calls:
+    - any_of:
+        - {tool: get_sales, store_id: all, start_date: "2026-10-14", end_date: "2026-10-14"}
+        - all_of:
+            - {tool: get_sales, store_id: harbor, start_date: "2026-10-14", end_date: "2026-10-14"}
+            - {tool: get_sales, store_id: mill, start_date: "2026-10-14", end_date: "2026-10-14"}
+            - {tool: get_sales, store_id: online, start_date: "2026-10-14", end_date: "2026-10-14"}
 
 - id: store-last-week
   message: How did Mill Lane do last week?
   lang: en
   tags: [figures, date-range, one-store]
   expect_tools: [get_sales]
+  # Either reading of "last week" is a valid path; the answer must say which.
+  expect_calls:
+    - any_of:
+        - {tool: get_sales, store_id: mill, start_date: "2026-10-05", end_date: "2026-10-11"}
+        - {tool: get_sales, store_id: mill, start_date: "2026-10-08", end_date: "2026-10-14"}
+  must_state_period: true
   notes: >
     "Last week" is ambiguous (Mon-Sun 5-11 Oct, or the last 7 days). Either is
     acceptable if the answer says which range it used.
-  rubric: The answer must say which date range it took "last week" to mean.
 
 - id: best-store-september
   message: Which store had the highest revenue in September?
   lang: en
   tags: [figures, comparison]
   expect_tools: [get_sales]
+  # get_sales takes one store or all combined, so a comparison needs each store.
+  expect_calls:
+    - {tool: get_sales, store_id: harbor, start_date: "2026-09-01", end_date: "2026-09-30"}
+    - {tool: get_sales, store_id: mill, start_date: "2026-09-01", end_date: "2026-09-30"}
+    - {tool: get_sales, store_id: online, start_date: "2026-09-01", end_date: "2026-09-30"}
 
 - id: top-products-online
   message: What were the top 3 products online in the first week of October?
   lang: en
   tags: [figures, ranking, one-store]
   expect_tools: [get_top_products]
+  expect_calls:
+    - {tool: get_top_products, store_id: online, start_date: "2026-10-01", end_date: "2026-10-07"}
 
 - id: missing-period
   message: How are sales at Harbor Street?
@@ -58,12 +77,18 @@
   lang: ar
   tags: [figures, single-day, one-store, arabic]
   expect_tools: [get_sales]
+  expect_calls:
+    - {tool: get_sales, store_id: online, start_date: "2026-10-14", end_date: "2026-10-14"}
 
 - id: best-store-september-ar
   message: أي فرع حقق أعلى إيرادات في شهر سبتمبر؟
   lang: ar
   tags: [figures, comparison, arabic]
   expect_tools: [get_sales]
+  expect_calls:
+    - {tool: get_sales, store_id: harbor, start_date: "2026-09-01", end_date: "2026-09-30"}
+    - {tool: get_sales, store_id: mill, start_date: "2026-09-01", end_date: "2026-09-30"}
+    - {tool: get_sales, store_id: online, start_date: "2026-09-01", end_date: "2026-09-30"}
 
 - id: missing-period-ar
   message: كيف المبيعات في فرع ميل لين؟
